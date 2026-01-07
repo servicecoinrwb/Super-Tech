@@ -90,6 +90,7 @@
             color: #ddd;
         }
 
+        /* Updated Z-Index for screens to sit above mobile controls */
         #start-screen, #game-over-screen, #level-screen {
             position: absolute;
             top: 0;
@@ -103,7 +104,7 @@
             align-items: center;
             text-align: center;
             pointer-events: auto;
-            z-index: 10;
+            z-index: 30; 
         }
         
         #level-screen {
@@ -193,7 +194,7 @@
             color: black;
         }
 
-        /* Mobile Controls */
+        /* Mobile Controls Upgrade */
         #mobile-controls {
             display: none;
             width: 100%;
@@ -201,34 +202,51 @@
             position: absolute;
             top: 0;
             left: 0;
-            pointer-events: auto;
-            z-index: 5;
+            z-index: 20; /* Layer above game but below menus */
+            pointer-events: none; /* Let clicks pass through empty areas */
         }
 
         .touch-zone {
+            pointer-events: auto; /* Re-enable clicks for buttons */
             position: absolute;
-            bottom: 20px;
+            bottom: 40px;
             width: 80px;
             height: 80px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.15);
+            border: 3px solid rgba(255, 255, 255, 0.6);
             border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 24px;
+            font-size: 30px;
+            color: white;
             user-select: none;
+            backdrop-filter: blur(2px);
+            transition: transform 0.1s, background 0.1s;
         }
 
         .touch-zone:active {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0.95);
         }
 
-        #btn-left { left: 20px; }
-        #btn-right { left: 120px; }
-        #btn-action { right: 20px; border-color: #e74c3c; color: #e74c3c; width: 100px; height: 100px; font-size: 12px; }
+        #btn-left { left: 30px; }
+        #btn-right { left: 130px; }
+        #btn-action { 
+            right: 30px; 
+            border-color: #e74c3c; 
+            color: #e74c3c; 
+            width: 100px; 
+            height: 100px; 
+            font-size: 16px; 
+            font-weight: bold;
+            background: rgba(231, 76, 60, 0.2);
+        }
+        #btn-action:active {
+            background: rgba(231, 76, 60, 0.5);
+        }
 
-        @media (hover: none) and (pointer: coarse) {
+        @media (hover: none) and (pointer: coarse), (max-width: 900px) {
             #mobile-controls {
                 display: block;
             }
