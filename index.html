@@ -1014,9 +1014,9 @@
         totalDistance += gameSpeed * dt;
         
         // Fuel Consumption
-        // Consume based on time approx 2 units per sec
+        // Consume based on time approx 5 units per sec (increased from 3)
         if (player) {
-            fuel -= dt * 3;
+            fuel -= dt * 5;
             if (fuel <= 0) {
                 fuel = 0;
                 gameOver("OUT OF GAS!");
