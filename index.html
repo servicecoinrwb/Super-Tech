@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Super Tech: Service Run</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+            touch-action: none; /* Prevent pull-to-refresh on mobile */
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            background-color: #555;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            image-rendering: pixelated;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px;
+            font-size: 16px;
+            text-shadow: 2px 2px 0 #000;
+            align-items: flex-start; /* Align buttons to top */
+        }
+        
+        .hud-controls {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 32px;
+            color: #FFD700;
+            text-shadow: 4px 4px 0 #8B4500;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .pixel-logo {
+            max-width: 80%; /* Responsive width */
+            width: 250px;   /* Default target width */
+            height: auto;
+            margin-bottom: 10px;
+            
+            /* Retro effects to match the game style */
+            image-rendering: pixelated; 
+            filter: contrast(1.5) brightness(0.9);
+            /* border removed */
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        p {
+            font-size: 14px;
+            line-height: 24px;
+            color: #ccc;
+            max-width: 600px;
+            margin: 0 auto 20px auto;
+            padding: 0 20px;
+        }
+
+        button.btn-retro {
+            background: #e74c3c;
+            border: 4px solid #c0392b;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 18px;
+            padding: 15px 30px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 6px 0 #962d22;
+            transition: transform 0.1s, box-shadow 0.1s;
+            margin-top: 20px;
+        }
+
+        button.btn-retro:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #962d22;
+        }
+
+        .btn-secondary {
+            background: #7f8c8d;
+            border-color: #555;
+            box-shadow: 0 6px 0 #333;
+            font-size: 14px;
+            margin-top: 10px;
+            padding: 10px 20px;
+        }
+        .btn-secondary:active {
+            box-shadow: 0 0 0 #333;
+        }
+
+        .btn-pixel {
+            background: rgba(0,0,0,0.5);
+            border: 2px solid white;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            padding: 5px 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 12px;
+            pointer-events: auto; /* Ensure clickable */
+        }
+        .btn-pixel:hover {
+            background: white;
+            color: black;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            display: none;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: auto;
+            z-index: 5;
+        }
+
+        .touch-zone {
+            position: absolute;
+            bottom: 20px;
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            user-select: none;
+        }
+
+        .touch-zone:active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        #btn-left { left: 20px; }
+        #btn-right { left: 120px; }
+        #btn-action { right: 20px; border-color: #e74c3c; color: #e74c3c; width: 100px; height: 100px; font-size: 12px; }
+
+        @media (hover: none) and (pointer: coarse) {
+            #mobile-controls {
+                display: block;
+            }
+        }
+
+        .hidden { display: none !important; }
+
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div id="score-display">CASH: $0</div>
+            <div id="lives-display">VANS: 3</div>
+            <div class="hud-controls">
+                <button class="btn-pixel" onclick="toggleMusic()">♫</button>
+                <button class="btn-pixel" onclick="quitGame()">MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <img src="https://imageview.mechanicaltemp.com/objects/uploads/b06a602d-a276-47bc-808e-585ada089aa4" alt="Mechanical Temp" class="pixel-logo">
+        <h1>SUPER TECH</h1>
+        <p>Your shift starts now! Drive the service van.</p>
+        <p>Avoid <span style="color:#888">OIL</span>, <span style="color:#e67e22">CONES</span> and <span style="color:#c0392b">CARS</span>.</p>
+        <p>Drive <span style="color:#f1c40f">NEAR</span> the house (Left or Right side) and press <span style="color:#3498db">SPACE</span> to Fix!</p>
+        <p style="font-size: 10px; color: #777;">ARROWS to Move • SPACE to Service</p>
+        <button class="btn-retro" onclick="startGame()">START ENGINE</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="hidden">
+        <h1>GAME OVER</h1>
+        <p id="final-score">EARNINGS: $0</p>
+        <p id="game-over-reason">CRASHED!</p>
+        <button class="btn-retro" onclick="resetGame()">NEXT SHIFT</button>
+        <button class="btn-retro btn-secondary" onclick="quitGame()">MAIN MENU</button>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="mobile-controls">
+        <div id="btn-left" class="touch-zone">◄</div>
+        <div id="btn-right" class="touch-zone">►</div>
+        <div id="btn-action" class="touch-zone">FIX</div>
+    </div>
+</div>
+
+<script>
+    /**
+     * SUPER TECH (Formerly HVAC HERO)
+     * A simple canvas arcade game.
+     */
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Game State
+    let animationId;
+    let lastTime = 0;
+    let gameSpeed = 300; // Pixels per second
+    let score = 0;
+    let lives = 3;
+    let isGameOver = false;
+    let frameCount = 0;
+
+    // Inputs
+    const keys = {
+        ArrowLeft: false,
+        ArrowRight: false,
+        ArrowUp: false,
+        ArrowDown: false,
+        Space: false
+    };
+
+    // Constants
+    const ROAD_WIDTH = 400; // Logical width
+    let SCALE = 1;
+    let CENTER_X = 0;
+
+    // Entities
+    let player;
+    let obstacles = [];
+    let houses = [];
+    let traffic = [];
+    let particles = [];
+    let projectiles = [];
+
+    // Audio Context (Simple Beeps)
+    let audioCtx;
+    let musicTimer = null;
+    let musicBeat = 0;
+    let isMusicMuted = false;
+    
+    // Arena Rock Patterns
+    // Driving E String Bass (Pedal Point)
+    const rockBass = [
+        82.41, 82.41, 82.41, 82.41, // E E E E
+        98.00, 82.41, 110.00, 98.00 // G E A G
+    ];
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function startMusic() {
+        if (isMusicMuted) return;
+        initAudio();
+        if (musicTimer) clearInterval(musicTimer);
+        musicBeat = 0;
+        // Faster Tempo: ~140 BPM (107ms per 8th note)
+        musicTimer = setInterval(playMusicStep, 107);
+    }
+
+    function stopMusic() {
+        if (musicTimer) {
+            clearInterval(musicTimer);
+            musicTimer = null;
+        }
+    }
+
+    function toggleMusic() {
+        isMusicMuted = !isMusicMuted;
+        if (isMusicMuted) {
+            stopMusic();
+        } else {
+            if (!isGameOver && !document.getElementById('start-screen').classList.contains('visible')) {
+               // Only restart if game is running, otherwise wait for start
+               if(player) startMusic(); 
+            }
+        }
+        // Button visual feedback could go here
+    }
+
+    function playMusicStep() {
+        if (!audioCtx || isMusicMuted) return;
+        const t = audioCtx.currentTime;
+
+        // --- Bass (The Rhythm Section) ---
+        const bassOsc = audioCtx.createOscillator();
+        const bassGain = audioCtx.createGain();
+        bassOsc.connect(bassGain);
+        bassGain.connect(audioCtx.destination);
+
+        // Sawtooth for gritty rock bass
+        bassOsc.type = 'sawtooth';
+        
+        // Pattern: Driving 8ths
+        const noteIndex = musicBeat % 8;
+        const freq = rockBass[noteIndex];
+        
+        bassOsc.frequency.setValueAtTime(freq, t);
+
+        // Punchy envelope
+        bassGain.gain.setValueAtTime(0.15, t);
+        bassGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+
+        bassOsc.start(t);
+        bassOsc.stop(t + 0.1);
+
+        // --- Power Chords (The Guitars) ---
+        // Play on beat 0 and 4 (Kick/Snare pattern feel)
+        if (musicBeat % 4 === 0) {
+            const chordOsc = audioCtx.createOscillator();
+            const chordGain = audioCtx.createGain();
+            chordOsc.connect(chordGain);
+            chordGain.connect(audioCtx.destination);
+            
+            chordOsc.type = 'sawtooth';
+            
+            // Progression: E -> G -> A -> G
+            let chordRoot = 164.81; // E3
+            const measure = Math.floor(musicBeat / 8) % 4;
+            if (measure === 1) chordRoot = 196.00; // G3
+            if (measure === 2) chordRoot = 220.00; // A3
+            if (measure === 3) chordRoot = 196.00; // G3
+
+            // Power chord (Root + Fifth) - detuned slightly for chorus effect
+            chordOsc.frequency.setValueAtTime(chordRoot, t);
+            
+            // Add distortion-ish fade
+            chordGain.gain.setValueAtTime(0.05, t);
+            chordGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+            
+            chordOsc.start(t);
+            chordOsc.stop(t + 0.3);
+            
+            // The Fifth
+            const fifthOsc = audioCtx.createOscillator();
+            const fifthGain = audioCtx.createGain();
+            fifthOsc.connect(fifthGain);
+            fifthGain.connect(audioCtx.destination);
+            fifthOsc.type = 'sawtooth';
+            fifthOsc.frequency.setValueAtTime(chordRoot * 1.5, t);
+            fifthGain.gain.setValueAtTime(0.05, t);
+            fifthGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+            fifthOsc.start(t);
+            fifthOsc.stop(t + 0.3);
+        }
+
+        // --- Drums (Simple Rock Beat) ---
+        if (musicBeat % 4 === 0) { // Kick
+            const kickOsc = audioCtx.createOscillator();
+            const kickGain = audioCtx.createGain();
+            kickOsc.connect(kickGain);
+            kickGain.connect(audioCtx.destination);
+            kickOsc.frequency.setValueAtTime(150, t);
+            kickOsc.frequency.exponentialRampToValueAtTime(0.01, t + 0.1);
+            kickGain.gain.setValueAtTime(0.4, t);
+            kickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            kickOsc.start(t);
+            kickOsc.stop(t + 0.1);
+        }
+        if (musicBeat % 4 === 2) { // Snare
+            const snareOsc = audioCtx.createOscillator();
+            const snareGain = audioCtx.createGain();
+            snareOsc.connect(snareGain);
+            snareGain.connect(audioCtx.destination);
+            snareOsc.type = 'triangle'; // White noise is better but complex to generate here
+            snareOsc.frequency.setValueAtTime(200, t); // Body
+            snareGain.gain.setValueAtTime(0.2, t);
+            snareGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            snareOsc.start(t);
+            snareOsc.stop(t + 0.1);
+        }
+
+        musicBeat++;
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        
+        if (type === 'throw') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'score') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.setValueAtTime(1200, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'crash') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'oil') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.linearRampToValueAtTime(200, now + 0.4);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now);
+            osc.stop(now + 0.4);
+        } else if (type === 'honk') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(120, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        }
+    }
+
+    // --- Classes ---
+
+    class Van {
+        constructor() {
+            this.width = 40;
+            this.height = 70;
+            this.x = 0; // Relative to road center
+            this.y = 0; // Relative to screen bottom (offset)
+            this.speedX = 300;
+            this.slideTimer = 0;
+            this.slideDirection = 0;
+            this.angle = 0;
+        }
+
+        update(dt) {
+            // Handle Sliding from Oil
+            if (this.slideTimer > 0) {
+                this.slideTimer -= dt;
+                this.x += this.slideDirection * this.speedX * dt * 1.5;
+                this.angle += this.slideDirection * 10 * dt;
+            } else {
+                // Normal Movement
+                this.angle = 0;
+                if (keys.ArrowLeft) this.x -= this.speedX * dt;
+                if (keys.ArrowRight) this.x += this.speedX * dt;
+            }
+
+            // Boundaries
+            const roadEdge = ROAD_WIDTH / 2 - this.width / 2 - 25;
+            if (this.x < -roadEdge) {
+                this.x = -roadEdge;
+                this.slideTimer = 0; // Stop sliding if hit curb
+            }
+            if (this.x > roadEdge) {
+                this.x = roadEdge;
+                this.slideTimer = 0;
+            }
+        }
+
+        draw(ctx) {
+            ctx.save();
+            ctx.translate(CENTER_X + this.x, canvas.height - 100);
+            ctx.rotate(this.angle);
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width, this.height);
+
+            // Body
+            ctx.fillStyle = '#ecf0f1'; // White van
+            ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+
+            // Roof (Blue stripe)
+            ctx.fillStyle = '#3498db';
+            ctx.fillRect(-this.width/2, -this.height/2 + 10, this.width, 40);
+            
+            // Text "HVAC"
+            ctx.fillStyle = 'white';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('TECH', 0, 5);
+
+            // Windshield
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-this.width/2 + 2, -this.height/2 + 2, this.width - 4, 15);
+
+            // Headlights
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(-this.width/2 + 2, -this.height/2, 8, 4);
+            ctx.fillRect(this.width/2 - 10, -this.height/2, 8, 4);
+
+            ctx.restore();
+        }
+    }
+
+    class Traffic {
+        constructor(y) {
+            this.y = y;
+            this.lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+            this.x = this.lane * (ROAD_WIDTH / 3.0);
+            this.width = 42;
+            this.height = 65;
+            this.speed = 250; // Speed relative to ground (moving towards player)
+            this.color = ['#c0392b', '#8e44ad', '#27ae60', '#f39c12'][Math.floor(Math.random() * 4)];
+            this.honked = false;
+        }
+
+        update(dt) {
+            // Traffic moves AGAINST the flow (oncoming) or slower than player?
+            // Let's make it oncoming for maximum danger.
+            this.y -= this.speed * dt;
+        }
+
+        draw(ctx, camY) {
+            const screenY = canvas.height - 100 - (this.y - camY);
+            if (screenY > canvas.height + 50 || screenY < -100) return;
+
+            ctx.save();
+            ctx.translate(CENTER_X + this.x, screenY);
+            
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width, this.height);
+
+            // Car Body
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.roundRect(-this.width/2, -this.height/2, this.width, this.height, 5);
+            ctx.fill();
+
+            // Windshield (Front is bottom for oncoming)
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-this.width/2 + 4, this.height/2 - 20, this.width - 8, 15);
+            // Rear window
+            ctx.fillRect(-this.width/2 + 4, -this.height/2 + 5, this.width - 8, 10);
+
+            // Roof
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fillRect(-this.width/2 + 5, -this.height/2 + 20, this.width - 10, 30);
+
+            // Headlights (Bottom)
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(-this.width/2 + 2, this.height/2 - 4, 8, 4);
+            ctx.fillRect(this.width/2 - 10, this.height/2 - 4, 8, 4);
+
+            ctx.restore();
+        }
+    }
+
+    class Projectile {
+        constructor(x, y, targetX, targetY) {
+            this.x = x;
+            this.y = y; // World Y
+            this.targetX = targetX;
+            this.targetY = targetY;
+            this.speed = 1000; // Lateral speed
+            this.active = true;
+            this.rotation = 0;
+        }
+
+        update(dt) {
+            // Simple homing or just move to target?
+            // Let's just move X towards targetX
+            if (this.x < this.targetX) {
+                this.x += this.speed * dt;
+                if (this.x >= this.targetX) this.active = false;
+            } else {
+                this.x -= this.speed * dt;
+                if (this.x <= this.targetX) this.active = false;
+            }
+            
+            // Sync Y with target Y (perfect aim)
+            // Just interp towards it to make it look smooth
+            const dy = this.targetY - this.y;
+            this.y += dy * 5 * dt;
+
+            this.rotation += 15 * dt;
+        }
+
+        draw(ctx, camY) {
+            const screenY = canvas.height - 100 - (this.y - camY);
+            // Don't draw if off screen
+            if (screenY < -50 || screenY > canvas.height + 50) return;
+
+            ctx.save();
+            ctx.translate(CENTER_X + this.x, screenY);
+            ctx.rotate(this.rotation);
+            
+            // Draw Wrench
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fillRect(-10, -3, 20, 6);
+            // Ends
+            ctx.beginPath();
+            ctx.arc(-10, 0, 6, 0, Math.PI * 2);
+            ctx.arc(10, 0, 6, 0, Math.PI * 2);
+            ctx.fill();
+            // Inner Cutout
+            ctx.fillStyle = '#555'; // Dark bg color for hole
+            ctx.beginPath(); ctx.arc(-10, 0, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(10, 0, 3, 0, Math.PI*2); ctx.fill();
+            
+            ctx.restore();
+        }
+    }
+
+    class Obstacle {
+        constructor(y) {
+            this.y = y; // Distance from player start
+            this.width = 40;
+            this.height = 40;
+            // Randomize lane position
+            const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+            this.x = lane * (ROAD_WIDTH / 3.0);
+            
+            this.type = Math.random() > 0.6 ? 'oil' : 'cone';
+            if (Math.random() > 0.9) this.type = 'rock';
+        }
+
+        draw(ctx, camY) {
+            const screenY = canvas.height - 100 - (this.y - camY);
+            if (screenY > canvas.height + 50 || screenY < -100) return;
+
+            ctx.save();
+            ctx.translate(CENTER_X + this.x, screenY);
+
+            if (this.type === 'cone') {
+                ctx.fillStyle = '#e67e22';
+                ctx.beginPath();
+                ctx.moveTo(0, -20);
+                ctx.lineTo(15, 20);
+                ctx.lineTo(-15, 20);
+                ctx.fill();
+                // Base
+                ctx.fillStyle = '#d35400';
+                ctx.fillRect(-18, 15, 36, 5);
+            } else if (this.type === 'oil') {
+                ctx.fillStyle = '#111';
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.ellipse(0, 10, 25, 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            } else if (this.type === 'rock') {
+                ctx.fillStyle = '#7f8c8d';
+                ctx.beginPath();
+                ctx.arc(0, 10, 15, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+    }
+
+    class House {
+        constructor(y, side) {
+            this.y = y;
+            this.side = side; // -1 left, 1 right
+            this.width = 100;
+            this.height = 80;
+            this.needsService = Math.random() > 0.3; // Increased chance
+            this.serviceType = Math.random() > 0.5 ? 'hot' : 'cold';
+            this.serviced = false;
+            
+            // Position far off road
+            this.x = side * (ROAD_WIDTH / 2 + 80);
+        }
+
+        draw(ctx, camY) {
+            const screenY = canvas.height - 100 - (this.y - camY);
+            if (screenY > canvas.height + 100 || screenY < -100) return;
+
+            ctx.save();
+            ctx.translate(CENTER_X + this.x, screenY);
+
+            // Driveway
+            ctx.fillStyle = '#555';
+            const driveX = this.side === -1 ? 50 : -50;
+            ctx.fillRect(driveX, 0, this.side === -1 ? 100 : -100, 30);
+
+            // House Body
+            ctx.fillStyle = this.needsService && !this.serviced ? '#fce4ec' : '#ecf0f1';
+            ctx.fillRect(-40, -40, 80, 60);
+            
+            // Roof
+            ctx.fillStyle = '#c0392b';
+            ctx.beginPath();
+            ctx.moveTo(-50, -40);
+            ctx.lineTo(0, -70);
+            ctx.lineTo(50, -40);
+            ctx.fill();
+
+            // Door
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(-10, 0, 20, 20);
+
+            // Equipment (Visuals for AC or Furnace)
+            if (this.needsService || this.serviced) {
+                const equipX = this.side === -1 ? -55 : 55; // Offset from house center
+                ctx.save();
+                ctx.translate(equipX, 20); // Move to ground level
+
+                if (this.serviceType === 'hot') {
+                    // Draw AC Unit (Condenser) - Needs AC because it's hot
+                    ctx.fillStyle = '#bdc3c7';
+                    ctx.fillRect(-10, -20, 20, 20); // Box
+                    
+                    // Fan Grate
+                    ctx.fillStyle = '#7f8c8d';
+                    ctx.beginPath(); ctx.arc(0, -10, 8, 0, Math.PI*2); ctx.fill(); 
+                    
+                    // Grill lines
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(-8, -10); ctx.lineTo(8, -10);
+                    ctx.moveTo(0, -18); ctx.lineTo(0, -2);
+                    ctx.stroke();
+                } else {
+                    // Draw Furnace (Vertical unit) - Needs Heat because it's cold
+                    ctx.fillStyle = '#546e7a';
+                    ctx.fillRect(-8, -25, 16, 25); // Tall Box
+                    ctx.fillStyle = '#263238';
+                    ctx.fillRect(-6, -8, 12, 6); // Grate at bottom
+                    // Flue pipe
+                    ctx.strokeStyle = '#78909c';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -32); ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // Alert Icon
+            if (this.needsService && !this.serviced) {
+                // Bobbing effect
+                const bob = Math.sin(Date.now() / 200) * 5;
+                ctx.translate(0, -90 + bob);
+                
+                // Bubble
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(0, 0, 15, 0, Math.PI*2);
+                ctx.fill();
+
+                // Icon
+                if (this.serviceType === 'hot') {
+                    ctx.fillStyle = '#e74c3c'; // Red thermometer
+                    ctx.fillRect(-3, -8, 6, 16);
+                    ctx.beginPath(); ctx.arc(0, 8, 5, 0, Math.PI*2); ctx.fill();
+                } else {
+                    ctx.fillStyle = '#3498db'; // Snowflake roughly
+                    ctx.font = '16px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('❄️', 0, 2);
+                }
+            } else if (this.serviced) {
+                // Checkmark
+                ctx.translate(0, -90);
+                ctx.fillStyle = '#2ecc71';
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('✓', 0, 0);
+            }
+
+            ctx.restore();
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x;
+            this.y = y;
+            this.vx = (Math.random() - 0.5) * 200;
+            this.vy = (Math.random() - 0.5) * 200;
+            this.life = 1.0;
+            this.color = color;
+        }
+        update(dt) {
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+            this.life -= dt * 2;
+        }
+        draw(ctx) {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(CENTER_X + this.x, canvas.height - 100 - this.y, 4, 4); // simplistic y mapping
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    // --- Game Logic ---
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        SCALE = Math.min(canvas.width / ROAD_WIDTH, 1);
+        CENTER_X = canvas.width / 2;
+    }
+
+    function startGame() {
+        initAudio();
+        startMusic();
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        
+        player = new Van();
+        score = 0;
+        lives = 3;
+        gameSpeed = 400;
+        obstacles = [];
+        houses = [];
+        traffic = [];
+        projectiles = [];
+        particles = [];
+        isGameOver = false;
+        
+        lastTime = performance.now();
+        animationId = requestAnimationFrame(gameLoop);
+        
+        updateHUD();
+    }
+
+    function resetGame() {
+        stopMusic();
+        cancelAnimationFrame(animationId);
+        startGame();
+    }
+
+    function quitGame() {
+        isGameOver = true;
+        stopMusic();
+        cancelAnimationFrame(animationId);
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+    }
+
+    function gameOver(reason) {
+        stopMusic();
+        isGameOver = true;
+        document.getElementById('game-over-screen').classList.remove('hidden');
+        document.getElementById('final-score').innerText = `EARNINGS: $${score}`;
+        document.getElementById('game-over-reason').innerText = reason;
+    }
+
+    let nextObstacleDist = 0;
+    let nextTrafficDist = 500;
+    let nextHouseDist = 200;
+
+    function spawnEntities(distance) {
+        // Difficulty Multiplier: 1.0 to 3.0 based on distance
+        const difficulty = 1 + Math.min(distance / 10000, 2);
+
+        // Spawn Obstacles
+        if (distance > nextObstacleDist) {
+            obstacles.push(new Obstacle(distance + 1200));
+            // Next spawn is closer as difficulty increases
+            nextObstacleDist = distance + (Math.random() * 400 + 300) / difficulty;
+        }
+
+        // Spawn Traffic (Cars)
+        if (distance > nextTrafficDist) {
+            traffic.push(new Traffic(distance + 1500));
+            // Traffic gets denser
+            nextTrafficDist = distance + (Math.random() * 800 + 400) / difficulty;
+        }
+
+        // Spawn Houses
+        if (distance > nextHouseDist) {
+             const lastHouse = houses[houses.length-1];
+             houses.push(new House(distance + 1200, Math.random() > 0.5 ? 1 : -1));
+             nextHouseDist = distance + 300; // Consistent house spacing
+        }
+    }
+
+    let totalDistance = 0;
+
+    function update(dt) {
+        if (isGameOver) return;
+
+        totalDistance += gameSpeed * dt;
+        
+        // Speed scaling: Cap at 800
+        if (gameSpeed < 800) {
+            gameSpeed += dt * 10; 
+        }
+
+        player.update(dt);
+
+        // Projectiles
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            projectiles[i].update(dt);
+            if (!projectiles[i].active) projectiles.splice(i, 1);
+        }
+
+        // Traffic Updates
+        for (let t of traffic) {
+            t.update(dt);
+            // Audio cue when car passes close
+            if (!t.honked && t.y < totalDistance + 300 && t.y > totalDistance) {
+                // playSound('honk'); // Optional: can be annoying if too frequent
+                t.honked = true;
+            }
+        }
+
+        // Spawning
+        spawnEntities(totalDistance);
+
+        // Cleanup
+        obstacles = obstacles.filter(o => o.y > totalDistance - 200);
+        houses = houses.filter(h => h.y > totalDistance - 200);
+        traffic = traffic.filter(t => t.y > totalDistance - 500); // Allow traffic to go behind us
+
+        // Generic Collision Checker
+        function checkCollision(entity) {
+             // Simple box collision relative to road center
+            if (Math.abs(entity.y - totalDistance) < 50) {
+                if (Math.abs(player.x - entity.x) < (player.width + entity.width)/2 - 5) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Collisions: Obstacles
+        for (let obs of obstacles) {
+            if (checkCollision(obs)) {
+                if (obs.type === 'oil') {
+                    if (player.slideTimer <= 0) {
+                        player.slideTimer = 1.0;
+                        player.slideDirection = Math.random() > 0.5 ? 1 : -1;
+                        playSound('oil');
+                        createParticles(player.x, 0, '#111');
+                    }
+                } else {
+                    crash(obs);
+                }
+            }
+        }
+
+        // Collisions: Traffic
+        for (let car of traffic) {
+            if (checkCollision(car)) {
+                crash(car);
+            }
+        }
+    }
+
+    function crash(entity) {
+        lives--;
+        playSound('crash');
+        // Remove entity so we don't hit it twice instantly
+        if (entity instanceof Traffic) {
+            traffic = traffic.filter(t => t !== entity);
+        } else {
+            obstacles = obstacles.filter(o => o !== entity);
+        }
+        
+        createParticles(player.x, 0, '#e74c3c');
+        createParticles(player.x, 0, '#bdc3c7'); // Metal parts
+        
+        gameSpeed = 100; // Slow down massively on crash
+        updateHUD();
+        if (lives <= 0) gameOver("TOTALLED THE VAN!");
+    }
+
+    function createParticles(x, yRel, color) {
+        for(let i=0; i<10; i++) {
+            particles.push(new Particle(x, yRel, color));
+        }
+    }
+
+    function checkService() {
+        if (isGameOver) return;
+
+        let serviced = false;
+        const playerReach = 120; // Vertical tolerance
+        const laneThreshold = 50; // How far from center you must be
+
+        for (let house of houses) {
+            // Check if house is parallel to player
+            if (Math.abs(house.y - totalDistance) < playerReach) {
+                
+                // PAPERBOY MECHANIC: Must be on the correct side!
+                let inPosition = false;
+                
+                if (house.side === -1) {
+                    // House is Left, Player must be on Left side (x < -50)
+                    if (player.x < -laneThreshold) inPosition = true;
+                } else {
+                    // House is Right, Player must be on Right side (x > 50)
+                    if (player.x > laneThreshold) inPosition = true;
+                }
+
+                if (inPosition && house.needsService && !house.serviced) {
+                    // Throw animation
+                    playSound('throw');
+                    
+                    house.serviced = true;
+                    score += 50;
+                    playSound('score');
+                    serviced = true;
+                    
+                    // Create projectile visual flying from player to house
+                    projectiles.push(new Projectile(player.x, totalDistance, house.x, house.y));
+                }
+            }
+        }
+        
+        if (!serviced) {
+            // Missed throw sound?
+        }
+        updateHUD();
+    }
+
+    function updateHUD() {
+        document.getElementById('score-display').innerText = `CASH: $${score}`;
+        document.getElementById('lives-display').innerText = `VANS: ${lives}`;
+    }
+
+    function draw() {
+        // Clear
+        ctx.fillStyle = '#2c3e50'; // Grass color
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Road
+        ctx.fillStyle = '#7f8c8d'; // Road color
+        ctx.fillRect(CENTER_X - ROAD_WIDTH/2, 0, ROAD_WIDTH, canvas.height);
+        
+        // Road Lines
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([40, 40]);
+        ctx.lineDashOffset = -totalDistance;
+        ctx.beginPath();
+        ctx.moveTo(CENTER_X, 0);
+        ctx.lineTo(CENTER_X, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Lane markers (faint white for 3 lanes)
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([20, 20]);
+        // Left Lane Line
+        ctx.beginPath(); ctx.moveTo(CENTER_X - ROAD_WIDTH/6, 0); ctx.lineTo(CENTER_X - ROAD_WIDTH/6, canvas.height); ctx.stroke();
+        // Right Lane Line
+        ctx.beginPath(); ctx.moveTo(CENTER_X + ROAD_WIDTH/6, 0); ctx.lineTo(CENTER_X + ROAD_WIDTH/6, canvas.height); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Curbs
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(CENTER_X - ROAD_WIDTH/2 - 10, 0, 10, canvas.height);
+        ctx.fillRect(CENTER_X + ROAD_WIDTH/2, 0, 10, canvas.height);
+
+        // Entities
+        // Draw houses first (behind road objects usually, but side of road)
+        houses.forEach(h => h.draw(ctx, totalDistance));
+        
+        // Draw Traffic and Obstacles sorted by Y to handle overlap correctly-ish
+        const allObjects = [...obstacles, ...traffic];
+        allObjects.sort((a,b) => b.y - a.y); // Draw further away things first? No, standard painter algo.
+        // Actually for top-down, objects lower on screen (higher Y index visually, but lower world Y relative to cam)
+        // In this game, camY is increasing. Objects with higher Y are "ahead" (top of screen).
+        // Objects with lower Y are "near" (bottom of screen).
+        // Standard painter: Draw things at top of screen first.
+        // ScreenY = canvas.height - (obj.y - totalDistance).
+        // Higher obj.y => Lower ScreenY (Top).
+        // So sort by obj.y descending.
+        allObjects.sort((a,b) => b.y - a.y);
+        
+        allObjects.forEach(o => o.draw(ctx, totalDistance));
+        
+        player.draw(ctx);
+
+        // Draw Projectiles
+        projectiles.forEach(p => p.draw(ctx, totalDistance));
+
+        particles.forEach(p => p.draw(ctx));
+
+        // Scanlines effect (Retro)
+        ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+        for (let i = 0; i < canvas.height; i += 4) {
+            ctx.fillRect(0, i, canvas.width, 2);
+        }
+    }
+
+    function gameLoop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        const dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+
+        update(dt);
+        draw();
+
+        if (!isGameOver) {
+            requestAnimationFrame(gameLoop);
+        }
+    }
+
+    // --- Inputs ---
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'ArrowLeft') keys.ArrowLeft = true;
+        if (e.code === 'ArrowRight') keys.ArrowRight = true;
+        if (e.code === 'Space') {
+            if(!keys.Space) checkService();
+            keys.Space = true;
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'ArrowLeft') keys.ArrowLeft = false;
+        if (e.code === 'ArrowRight') keys.ArrowRight = false;
+        if (e.code === 'Space') keys.Space = false;
+    });
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Touch Controls
+    const btnLeft = document.getElementById('btn-left');
+    const btnRight = document.getElementById('btn-right');
+    const btnAction = document.getElementById('btn-action');
+
+    btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowLeft = true; });
+    btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys.ArrowLeft = false; });
+    
+    btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowRight = true; });
+    btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys.ArrowRight = false; });
+
+    btnAction.addEventListener('touchstart', (e) => { 
+        e.preventDefault(); 
+        keys.Space = true; 
+        checkService(); 
+    });
+    btnAction.addEventListener('touchend', (e) => { e.preventDefault(); keys.Space = false; });
+
+</script>
+</body>
+</html>
