@@ -243,7 +243,7 @@
         <div class="hud-top">
             <div class="hud-stats">
                 <div id="score-display">CASH: $0</div>
-                <div id="lives-display">VANS: 3</div>
+                <!-- Lives display removed -->
                 <div>
                     <div class="fuel-label">FUEL TANK</div>
                     <div id="fuel-bar-container">
@@ -300,7 +300,6 @@
     let lastTime = 0;
     let gameSpeed = 300; // Pixels per second
     let score = 0;
-    let lives = 3;
     let fuel = 100;
     let isGameOver = false;
     let frameCount = 0;
@@ -935,7 +934,6 @@
         
         player = new Van();
         score = 0;
-        lives = 3;
         fuel = 100;
         gameSpeed = 400;
         obstacles = [];
@@ -1100,7 +1098,6 @@
     }
 
     function crash(entity) {
-        lives--;
         playSound('crash');
         // Trigger screen shake
         shakeTimer = 0.5;
@@ -1118,7 +1115,6 @@
         gameSpeed = Math.max(200, gameSpeed * 0.5); 
         
         updateHUD();
-        if (lives <= 0) gameOver("TOTALLED THE VAN!");
     }
 
     function createParticles(x, yRel, color) {
@@ -1177,7 +1173,6 @@
 
     function updateHUD() {
         document.getElementById('score-display').innerText = `CASH: $${score}`;
-        document.getElementById('lives-display').innerText = `VANS: ${lives}`;
         
         // Update Fuel Bar
         const fuelFill = document.getElementById('fuel-bar-fill');
