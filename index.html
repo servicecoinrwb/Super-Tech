@@ -90,13 +90,13 @@
             color: #ddd;
         }
 
-        #start-screen, #game-over-screen {
+        #start-screen, #game-over-screen, #level-screen {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.95);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -105,6 +105,11 @@
             pointer-events: auto;
             z-index: 10;
         }
+        
+        #level-screen {
+            background: rgba(26, 11, 46, 0.95); /* Ninja Purple */
+            pointer-events: none; /* Just an overlay */
+        }
 
         h1 {
             font-size: 32px;
@@ -112,6 +117,12 @@
             text-shadow: 4px 4px 0 #8B4500;
             margin-bottom: 20px;
             line-height: 1.5;
+        }
+        
+        .ninja-title {
+            color: #e74c3c !important;
+            text-shadow: 4px 4px 0 #000 !important;
+            font-style: italic;
         }
 
         .pixel-logo {
@@ -265,8 +276,17 @@
         <p>Your shift starts now! Drive the service van.</p>
         <p>Avoid <span style="color:#888">OIL</span>, <span style="color:#e67e22">CONES</span> and <span style="color:#c0392b">CARS</span>.</p>
         <p>Fix Houses to earn Cash. Stop at <span style="color:#2ecc71">GAS STATIONS</span> to refuel ($100)!</p>
+        <p>Visit <span style="color:#d35400">SUPPLY HOUSES</span> for bonus parts!</p>
         <p style="font-size: 10px; color: #777;">ARROWS to Move • SPACE to Service/Refuel</p>
         <button class="btn-retro" onclick="startGame()">START ENGINE</button>
+    </div>
+
+    <!-- Level Up Screen -->
+    <div id="level-screen" class="hidden">
+        <h1 class="ninja-title">LEVEL 2</h1>
+        <h1 class="ninja-title" style="font-size: 48px;">ON CALL</h1>
+        <p>EMERGENCY CALLS - NIGHT SHIFT</p>
+        <p style="color: #e74c3c">HEAVY TRAFFIC AHEAD!</p>
     </div>
 
     <!-- Game Over Screen -->
@@ -304,8 +324,11 @@
     let fuel = 100;
     let shiftTime = 0; // Time in seconds
     let isGameOver = false;
+    let isPaused = false;
     let frameCount = 0;
     let shakeTimer = 0;
+    let level = 1;
+    let levelTransitioning = false;
 
     // Inputs
     const keys = {
@@ -326,6 +349,7 @@
     let obstacles = [];
     let houses = [];
     let gasStations = [];
+    let supplyHouses = [];
     let traffic = [];
     let particles = [];
     let projectiles = [];
@@ -335,6 +359,7 @@
     let musicTimer = null;
     let musicBeat = 0;
     let isMusicMuted = false;
+    let tempo = 107; // Default BPM ms
     
     // Arena Rock Patterns
     // Driving E String Bass (Pedal Point)
@@ -357,8 +382,9 @@
         initAudio();
         if (musicTimer) clearInterval(musicTimer);
         musicBeat = 0;
-        // Faster Tempo: ~140 BPM (107ms per 8th note)
-        musicTimer = setInterval(playMusicStep, 107);
+        // Tempo based on Level
+        tempo = level === 1 ? 107 : 90; // Faster in Level 2 (smaller number = faster)
+        musicTimer = setInterval(playMusicStep, tempo);
     }
 
     function stopMusic() {
@@ -390,7 +416,11 @@
         bassGain.connect(audioCtx.destination);
         bassOsc.type = 'sawtooth';
         const noteIndex = musicBeat % 8;
-        const freq = rockBass[noteIndex];
+        let freq = rockBass[noteIndex];
+        
+        // Level 2 music variation (Shift up 2 semitones)
+        if(level === 2) freq *= 1.122; 
+
         bassOsc.frequency.setValueAtTime(freq, t);
         bassGain.gain.setValueAtTime(0.15, t);
         bassGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
@@ -410,6 +440,8 @@
             if (measure === 1) chordRoot = 196.00; // G3
             if (measure === 2) chordRoot = 220.00; // A3
             if (measure === 3) chordRoot = 196.00; // G3
+
+            if(level === 2) chordRoot *= 1.122;
 
             chordOsc.frequency.setValueAtTime(chordRoot, t);
             chordGain.gain.setValueAtTime(0.05, t);
@@ -500,7 +532,6 @@
             osc.start(now);
             osc.stop(now + 0.4);
         } else if (type === 'fuel') {
-            // Glug glug sound
             osc.type = 'sine';
             osc.frequency.setValueAtTime(200, now);
             osc.frequency.linearRampToValueAtTime(400, now + 0.4);
@@ -508,6 +539,37 @@
             gain.gain.linearRampToValueAtTime(0.0, now + 0.4);
             osc.start(now);
             osc.stop(now + 0.4);
+        } else if (type === 'levelup') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.setValueAtTime(554, now + 0.1);
+            osc.frequency.setValueAtTime(659, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.0, now + 1.0);
+            osc.start(now);
+            osc.stop(now + 1.0);
+        } else if (type === 'parts') {
+            // Ka-ching / tool sound
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+            
+            // Second ding
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.type = 'square';
+            osc2.frequency.setValueAtTime(1200, now + 0.1);
+            osc2.frequency.exponentialRampToValueAtTime(1600, now + 0.2);
+            gain2.gain.setValueAtTime(0.1, now + 0.1);
+            gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc2.start(now + 0.1);
+            osc2.stop(now + 0.3);
         }
     }
 
@@ -517,8 +579,8 @@
         constructor() {
             this.width = 40;
             this.height = 70;
-            this.x = 0; // Relative to road center
-            this.y = 0; // Relative to screen bottom (offset)
+            this.x = 0; 
+            this.y = 0; 
             this.speedX = 300;
             this.slideTimer = 0;
             this.slideDirection = 0;
@@ -542,7 +604,7 @@
             const roadEdge = ROAD_WIDTH / 2 - this.width / 2 - 25;
             if (this.x < -roadEdge) {
                 this.x = -roadEdge;
-                this.slideTimer = 0; // Stop sliding if hit curb
+                this.slideTimer = 0; 
             }
             if (this.x > roadEdge) {
                 this.x = roadEdge;
@@ -589,15 +651,19 @@
     class Traffic {
         constructor(y) {
             this.y = y;
-            this.lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+            this.lane = Math.floor(Math.random() * 3) - 1; 
             this.x = this.lane * (ROAD_WIDTH / 3.0);
             this.width = 42;
             this.height = 65;
             
-            this.isSpeeder = Math.random() < 0.2; // 20% chance
+            this.isSpeeder = Math.random() < 0.2; 
             this.speed = this.isSpeeder ? 550 : 250; 
+            // Level 2 Speed Boost
+            if (level === 2) this.speed += 150; 
             
             this.color = this.isSpeeder ? '#ff0033' : ['#c0392b', '#8e44ad', '#27ae60', '#f39c12'][Math.floor(Math.random() * 4)];
+            if(level === 2 && !this.isSpeeder) this.color = '#555'; // Darker cars at night
+            
             this.honked = false;
         }
 
@@ -638,7 +704,28 @@
             ctx.fillRect(-this.width/2 + 5, -this.height/2 + 20, this.width - 10, 30);
 
             // Headlights 
+            // In Level 2 (Night), headlights are brighter/longer
             ctx.fillStyle = this.isSpeeder ? '#8bf' : '#f1c40f'; 
+            if (level === 2) {
+                ctx.fillStyle = '#fff'; // Bright LED/High beams
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(-this.width/2 + 2, this.height/2 - 4);
+                ctx.lineTo(-this.width/2 - 10, this.height/2 + 60); // Beam
+                ctx.lineTo(-this.width/2 + 10, this.height/2 + 60);
+                ctx.lineTo(-this.width/2 + 10, this.height/2 - 4);
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.moveTo(this.width/2 - 10, this.height/2 - 4);
+                ctx.lineTo(this.width/2 - 20, this.height/2 + 60);
+                ctx.lineTo(this.width/2 + 2, this.height/2 + 60);
+                ctx.lineTo(this.width/2 - 2, this.height/2 - 4);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+                ctx.fillStyle = '#fff'; // The bulb itself
+            }
+            
             ctx.fillRect(-this.width/2 + 2, this.height/2 - 4, 8, 4);
             ctx.fillRect(this.width/2 - 10, this.height/2 - 4, 8, 4);
 
@@ -652,7 +739,7 @@
             this.y = y; // World Y
             this.targetX = targetX;
             this.targetY = targetY;
-            this.speed = 1000; // Lateral speed
+            this.speed = 1000; 
             this.active = true;
             this.rotation = 0;
         }
@@ -703,8 +790,14 @@
             const lane = Math.floor(Math.random() * 3) - 1; 
             this.x = lane * (ROAD_WIDTH / 3.0);
             
-            this.type = Math.random() > 0.6 ? 'oil' : 'cone';
-            if (Math.random() > 0.9) this.type = 'rock';
+            // Level 2: Trash Cans and Construction Barrels
+            if (level === 2) {
+                this.type = Math.random() > 0.6 ? 'oil' : 'trash'; // Trash cans
+                if (Math.random() > 0.8) this.type = 'barrel'; // Construction Barrel
+            } else {
+                this.type = Math.random() > 0.6 ? 'oil' : 'cone';
+                if (Math.random() > 0.9) this.type = 'rock';
+            }
         }
 
         draw(ctx, camY) {
@@ -716,25 +809,35 @@
 
             if (this.type === 'cone') {
                 ctx.fillStyle = '#e67e22';
-                ctx.beginPath();
-                ctx.moveTo(0, -20);
-                ctx.lineTo(15, 20);
-                ctx.lineTo(-15, 20);
-                ctx.fill();
-                ctx.fillStyle = '#d35400';
-                ctx.fillRect(-18, 15, 36, 5);
+                ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(15, 20); ctx.lineTo(-15, 20); ctx.fill();
+                ctx.fillStyle = '#d35400'; ctx.fillRect(-18, 15, 36, 5);
             } else if (this.type === 'oil') {
-                ctx.fillStyle = '#111';
-                ctx.globalAlpha = 0.8;
-                ctx.beginPath();
-                ctx.ellipse(0, 10, 25, 15, 0, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillStyle = '#111'; ctx.globalAlpha = 0.8;
+                ctx.beginPath(); ctx.ellipse(0, 10, 25, 15, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.globalAlpha = 1.0;
             } else if (this.type === 'rock') {
+                ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.arc(0, 10, 15, 0, Math.PI*2); ctx.fill();
+            } else if (this.type === 'barrel') { // Level 2 Construction Barrel
+                ctx.fillStyle = '#e67e22'; // Orange
+                ctx.fillRect(-15, -20, 30, 40);
+                ctx.fillStyle = '#fff'; // Stripes
+                ctx.fillRect(-15, -10, 30, 10);
+                ctx.fillRect(-15, 10, 30, 10);
+                // Top lid
+                ctx.fillStyle = '#d35400';
+                ctx.beginPath(); ctx.ellipse(0, -20, 15, 5, 0, 0, Math.PI*2); ctx.fill();
+            } else if (this.type === 'trash') { // Level 2 Trash Can
+                ctx.fillStyle = '#95a5a6'; // Metal/Silver
+                ctx.fillRect(-12, -18, 24, 36);
+                // Ribs
+                ctx.strokeStyle = '#7f8c8d';
+                ctx.beginPath(); 
+                ctx.moveTo(-12, -5); ctx.lineTo(12, -5);
+                ctx.moveTo(-12, 5); ctx.lineTo(12, 5);
+                ctx.stroke();
+                // Lid handle
                 ctx.fillStyle = '#7f8c8d';
-                ctx.beginPath();
-                ctx.arc(0, 10, 15, 0, Math.PI*2);
-                ctx.fill();
+                ctx.fillRect(-4, -22, 8, 4);
             }
 
             ctx.restore();
@@ -793,6 +896,69 @@
         }
     }
 
+    class SupplyHouse {
+        constructor(y, side) {
+            this.y = y;
+            this.side = side;
+            this.width = 120;
+            this.height = 80;
+            this.x = side * (ROAD_WIDTH / 2 + 90);
+            this.collected = false;
+        }
+
+        draw(ctx, camY) {
+            const screenY = canvas.height - 100 - (this.y - camY);
+            if (screenY > canvas.height + 100 || screenY < -100) return;
+
+            ctx.save();
+            ctx.translate(CENTER_X + this.x, screenY);
+
+            // Warehouse Base
+            ctx.fillStyle = '#7f8c8d'; // Grey concrete
+            ctx.fillRect(-50, -10, 100, 20);
+
+            // Building
+            ctx.fillStyle = '#d35400'; // Industrial Orange
+            ctx.fillRect(-40, -50, 80, 50);
+
+            // Roof
+            ctx.fillStyle = '#2c3e50';
+            ctx.beginPath();
+            ctx.moveTo(-45, -50);
+            ctx.lineTo(0, -70);
+            ctx.lineTo(45, -50);
+            ctx.fill();
+
+            // Roll-up Door
+            ctx.fillStyle = '#95a5a6';
+            ctx.fillRect(-20, -40, 40, 40);
+            // Lines on door
+            ctx.strokeStyle = '#7f8c8d';
+            ctx.lineWidth = 2;
+            for(let i=0; i<4; i++) {
+                ctx.beginPath(); ctx.moveTo(-20, -30 + i*10); ctx.lineTo(20, -30 + i*10); ctx.stroke();
+            }
+
+            // Sign
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(-30, -60, 60, 15);
+            ctx.fillStyle = '#000';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('PARTS', 0, -50);
+
+            // Interact Indicator
+            if (!this.collected) {
+                const bob = Math.sin(Date.now() / 200) * 3;
+                ctx.fillStyle = '#2ecc71'; // Green for bonus
+                ctx.font = '10px "Press Start 2P"';
+                ctx.fillText('+$250', 0, -85 + bob);
+            }
+
+            ctx.restore();
+        }
+    }
+
     class House {
         constructor(y, side) {
             this.y = y;
@@ -819,10 +985,14 @@
 
             // House Body
             ctx.fillStyle = this.needsService && !this.serviced ? '#fce4ec' : '#ecf0f1';
+            if(level === 2) ctx.fillStyle = '#4a235a'; // Dark purple house in level 2
+            
             ctx.fillRect(-40, -40, 80, 60);
             
             // Roof
             ctx.fillStyle = '#c0392b';
+            if(level === 2) ctx.fillStyle = '#2c3e50'; // Dark roof
+            
             ctx.beginPath();
             ctx.moveTo(-50, -40);
             ctx.lineTo(0, -70);
@@ -933,6 +1103,7 @@
         startMusic();
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('level-screen').classList.add('hidden');
         
         player = new Van();
         score = 0;
@@ -942,15 +1113,37 @@
         obstacles = [];
         houses = [];
         gasStations = [];
+        supplyHouses = [];
         traffic = [];
         projectiles = [];
         particles = [];
         isGameOver = false;
+        level = 1;
+        levelTransitioning = false;
         
         lastTime = performance.now();
         animationId = requestAnimationFrame(gameLoop);
         
         updateHUD();
+    }
+
+    function startLevel2() {
+        if(level === 2) return;
+        level = 2;
+        levelTransitioning = true;
+        playSound('levelup');
+        
+        document.getElementById('level-screen').classList.remove('hidden');
+        
+        // Boost difficulty
+        gameSpeed = 600; 
+        
+        // Pause briefly for dramatic effect
+        setTimeout(() => {
+            document.getElementById('level-screen').classList.add('hidden');
+            levelTransitioning = false;
+            startMusic(); // Restart music with new tempo/pitch
+        }, 3000);
     }
 
     function resetGame() {
@@ -965,6 +1158,7 @@
         cancelAnimationFrame(animationId);
         document.getElementById('start-screen').classList.remove('hidden');
         document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('level-screen').classList.add('hidden');
     }
 
     function gameOver(reason) {
@@ -973,7 +1167,7 @@
         document.getElementById('game-over-screen').classList.remove('hidden');
         document.getElementById('final-score').innerText = `EARNINGS: $${score}`;
         
-        // Format final time
+        // Format Time
         const mins = Math.floor(shiftTime / 60);
         const secs = Math.floor(shiftTime % 60);
         const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -986,20 +1180,24 @@
     let nextTrafficDist = 500;
     let nextHouseDist = 200;
     let nextGasDist = 2000;
+    let nextSupplyDist = 1500;
 
     function spawnEntities(distance) {
         const difficulty = 1 + Math.min(distance / 10000, 2);
+        
+        // Level 2 spawns things faster
+        const spawnMult = level === 2 ? 0.7 : 1.0; 
 
         // Spawn Obstacles
         if (distance > nextObstacleDist) {
             obstacles.push(new Obstacle(distance + 1200));
-            nextObstacleDist = distance + (Math.random() * 400 + 300) / difficulty;
+            nextObstacleDist = distance + ((Math.random() * 400 + 300) / difficulty) * spawnMult;
         }
 
         // Spawn Traffic (Cars)
         if (distance > nextTrafficDist) {
             traffic.push(new Traffic(distance + 1500));
-            nextTrafficDist = distance + (Math.random() * 800 + 400) / difficulty;
+            nextTrafficDist = distance + ((Math.random() * 800 + 400) / difficulty) * spawnMult;
         }
 
         // Spawn Houses
@@ -1014,20 +1212,34 @@
             gasStations.push(new GasStation(distance + 1200, Math.random() > 0.5 ? 1 : -1));
             nextGasDist = distance + 2000 + Math.random() * 1000;
         }
+
+        // Spawn Supply Houses
+        if (distance > nextSupplyDist) {
+            supplyHouses.push(new SupplyHouse(distance + 1200, Math.random() > 0.5 ? 1 : -1));
+            nextSupplyDist = distance + 3000 + Math.random() * 2000;
+        }
     }
 
     let totalDistance = 0;
 
     function update(dt) {
-        if (isGameOver) return;
+        if (isGameOver || levelTransitioning) return;
 
         totalDistance += gameSpeed * dt;
         shiftTime += dt;
         
+        // Level Transition Logic
+        if(score >= 1000 && level === 1) {
+            startLevel2();
+        }
+        
         // Fuel Consumption
         // Consume based on time approx 5 units per sec (increased from 3)
         if (player) {
-            fuel -= dt * 5;
+            let fuelBurn = 5;
+            if(level === 2) fuelBurn = 7; // Burn more fuel in Level 2
+            
+            fuel -= dt * fuelBurn;
             if (fuel <= 0) {
                 fuel = 0;
                 gameOver("OUT OF GAS!");
@@ -1037,8 +1249,9 @@
         // Shake Timer
         if (shakeTimer > 0) shakeTimer -= dt;
         
-        // Speed scaling: Cap at 800
-        if (gameSpeed < 800) {
+        // Speed scaling: Cap at 800 (1000 for level 2)
+        const maxSpeed = level === 2 ? 1000 : 800;
+        if (gameSpeed < maxSpeed) {
             gameSpeed += dt * 10; 
         }
 
@@ -1066,6 +1279,7 @@
         obstacles = obstacles.filter(o => o.y > totalDistance - 200);
         houses = houses.filter(h => h.y > totalDistance - 200);
         gasStations = gasStations.filter(g => g.y > totalDistance - 200);
+        supplyHouses = supplyHouses.filter(s => s.y > totalDistance - 200);
         traffic = traffic.filter(t => t.y > totalDistance - 500); 
 
         // Generic Collision Checker
@@ -1135,7 +1349,7 @@
     }
 
     function checkService() {
-        if (isGameOver) return;
+        if (isGameOver || levelTransitioning) return;
 
         let actionTaken = false;
         const playerReach = 120; // Vertical tolerance
@@ -1178,6 +1392,25 @@
                 }
             }
         }
+
+        // Check Supply Houses
+        if (!actionTaken) {
+            for (let supply of supplyHouses) {
+                if (Math.abs(supply.y - totalDistance) < playerReach) {
+                    let inPosition = false;
+                    if (supply.side === -1 && player.x < -laneThreshold) inPosition = true;
+                    if (supply.side === 1 && player.x > laneThreshold) inPosition = true;
+                    
+                    if (inPosition && !supply.collected) {
+                        playSound('parts'); // Play new sound
+                        score += 250; // Bonus cash
+                        supply.collected = true;
+                        createParticles(player.x, 0, '#d35400'); // Orange/Bronze sparks
+                        actionTaken = true;
+                    }
+                }
+            }
+        }
         
         updateHUD();
     }
@@ -1205,8 +1438,21 @@
 
     function draw() {
         // Clear
-        ctx.fillStyle = '#2c3e50'; // Grass color
+        // Level 1: Grass (#2c3e50), Level 2: Dark Night (#1a0b2e)
+        ctx.fillStyle = level === 1 ? '#2c3e50' : '#1a0b2e'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        if(level === 2) {
+            // Draw Moon
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath();
+            ctx.arc(canvas.width - 80, 80, 40, 0, Math.PI*2);
+            ctx.fill();
+            // Crater
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.beginPath(); ctx.arc(canvas.width - 90, 70, 8, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(canvas.width - 70, 90, 5, 0, Math.PI*2); ctx.fill();
+        }
 
         // Apply Screen Shake
         ctx.save();
@@ -1218,7 +1464,8 @@
         }
 
         // Road
-        ctx.fillStyle = '#7f8c8d'; // Road color
+        // Level 1: Grey, Level 2: Darker Grey
+        ctx.fillStyle = level === 1 ? '#7f8c8d' : '#34495e'; 
         ctx.fillRect(CENTER_X - ROAD_WIDTH/2, 0, ROAD_WIDTH, canvas.height);
         
         // Road Lines
@@ -1251,6 +1498,7 @@
         // Draw houses and gas stations first (behind road objects usually, but side of road)
         houses.forEach(h => h.draw(ctx, totalDistance));
         gasStations.forEach(g => g.draw(ctx, totalDistance));
+        supplyHouses.forEach(s => s.draw(ctx, totalDistance));
         
         // Draw Traffic and Obstacles sorted by Y to handle overlap correctly-ish
         const allObjects = [...obstacles, ...traffic];
@@ -1325,6 +1573,12 @@
         checkService(); 
     });
     btnAction.addEventListener('touchend', (e) => { e.preventDefault(); keys.Space = false; });
+    
+    // Expose functions to window for buttons
+    window.quitGame = quitGame;
+    window.toggleMusic = toggleMusic;
+    window.startGame = startGame;
+    window.resetGame = resetGame;
 
 </script>
 </body>
