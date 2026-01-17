@@ -82,23 +82,35 @@
         .screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.95);
+            background: rgba(0, 0, 0, 0.85); /* Slightly transparent to see game behind */
             display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
-            text-align: center; pointer-events: auto; z-index: 30;
+            justify-content: flex-start; /* Changed from center to handle tall content */
+            align-items: center;
+            text-align: center; 
+            pointer-events: auto; 
+            z-index: 30;
+            overflow-y: auto; /* Allow scrolling if leaderboard is long */
+            padding-top: 40px;
+            padding-bottom: 40px;
+            box-sizing: border-box;
         }
         
-        #level-screen { background: rgba(26, 11, 46, 0.95); pointer-events: none; }
-        #win-screen { background: rgba(46, 204, 113, 0.95); }
+        .hidden { display: none !important; opacity: 0; pointer-events: none; }
 
-        h1 { font-size: 32px; color: var(--warning-color); text-shadow: 4px 4px 0 #8B4500; margin-bottom: 20px; line-height: 1.4; }
-        p { font-size: 14px; line-height: 24px; color: #ccc; max-width: 600px; margin: 0 auto 20px; padding: 0 20px; }
-        
+        #screen-level { justify-content: center; background: rgba(26, 11, 46, 0.95); pointer-events: none; }
+        #screen-gameover { justify-content: center; }
+        #screen-win { justify-content: center; background: rgba(46, 204, 113, 0.95); }
+
+        h1 { font-size: 28px; color: var(--warning-color); text-shadow: 4px 4px 0 #8B4500; margin-bottom: 15px; line-height: 1.4; }
+        .ninja-title { color: #e74c3c !important; text-shadow: 4px 4px 0 #000 !important; font-style: italic; }
+
         .logo-img {
-            max-width: 250px; width: 80%; height: auto; margin-bottom: 20px;
+            max-width: 250px; width: 70%; height: auto; margin-bottom: 15px;
             image-rendering: pixelated; filter: contrast(1.2) brightness(1.1);
             filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));
         }
+
+        p { font-size: 12px; line-height: 20px; color: #ccc; max-width: 600px; margin: 0 auto 15px; padding: 0 20px; }
 
         /* Buttons */
         .btn-retro {
@@ -107,11 +119,12 @@
             color: white;
             font-family: inherit;
             font-size: 16px;
-            padding: 15px 30px;
+            padding: 12px 24px;
             cursor: pointer;
             text-transform: uppercase;
             box-shadow: 0 6px 0 #962d22;
-            margin-top: 15px;
+            margin-top: 10px;
+            margin-bottom: 10px;
         }
         .btn-retro:active { transform: translateY(6px); box-shadow: 0 0 0 #962d22; }
         .btn-secondary { background: #7f8c8d; border-color: #555; box-shadow: 0 6px 0 #333; }
@@ -122,14 +135,14 @@
             border: none;
             font-family: sans-serif;
             font-weight: bold;
-            font-size: 14px;
-            padding: 10px 20px;
+            font-size: 13px;
+            padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 8px;
+            margin-top: 10px;
         }
         .btn-google:active { background: #eee; }
         
@@ -147,31 +160,31 @@
 
         /* Leaderboard Styles */
         #leaderboard {
-            margin-top: 20px;
-            background: rgba(0,0,0,0.8);
-            border: 2px solid #fff;
-            padding: 15px;
-            width: 80%;
-            max-width: 350px;
-            max-height: 200px;
+            margin-top: 15px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid #3498db;
+            padding: 10px;
+            width: 90%;
+            max-width: 320px;
+            max-height: 180px;
             overflow-y: auto;
-            font-size: 12px;
+            font-size: 10px;
             text-align: left;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
         }
         .leaderboard-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 8px;
-            border-bottom: 1px dashed #555;
-            padding-bottom: 4px;
+            margin-bottom: 6px;
+            border-bottom: 1px dotted #555;
+            padding-bottom: 3px;
         }
         .leaderboard-row:last-child { border-bottom: none; }
         .rank-name { color: #f1c40f; }
         .rank-score { color: #2ecc71; }
 
         #input-container { margin: 15px 0; }
-        #username {
+        #username, #win-username {
             background: #333;
             border: 2px solid #fff;
             color: #fff;
@@ -187,6 +200,7 @@
             font-size: 10px;
             color: #aaa;
             margin-top: 5px;
+            margin-bottom: 5px;
         }
 
         /* Mobile Controls */
@@ -211,8 +225,8 @@
         
         #dpad-left { left: 20px; }
         #dpad-right { left: 110px; }
-        #dpad-up { left: 65px; bottom: 90px; display: none; } /* Only for platformer/drive up */
-        #dpad-down { left: 65px; bottom: 20px; display: none; } /* Only for drive */
+        #dpad-up { left: 65px; bottom: 90px; display: none; } 
+        #dpad-down { left: 65px; bottom: 20px; display: none; } 
         
         #btn-action { 
             right: 30px; width: 90px; height: 90px; 
@@ -223,6 +237,12 @@
 
         /* Animations */
         @keyframes blink { 50% { opacity: 0.5; } }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #222; }
+        ::-webkit-scrollbar-thumb { background: #555; }
+        ::-webkit-scrollbar-thumb:hover { background: #888; }
     </style>
 </head>
 <body>
@@ -261,15 +281,17 @@
     <div id="screen-start" class="screen">
         <img src="https://imageview.mechanicaltemp.com/objects/uploads/b06a602d-a276-47bc-808e-585ada089aa4" alt="Mechanical Temp" class="logo-img">
         <h1>SUPER TECH</h1>
-        <p>Drive the van, fix the HVACs, survive the shift.</p>
+        <p>Drive the service van, fix HVACs, and dodge traffic!</p>
+        
         <button class="btn-retro" onclick="window.startGame()">START ENGINE</button>
+        
         <button id="btn-google-login" class="btn-google" onclick="window.loginGoogle()">
-            <span style="font-size:18px;">G</span> Sign in with Google
+            <span style="font-weight:900;">G</span> Sign in for Leaderboard
         </button>
         <div id="user-status">Not Signed In</div>
         
         <div id="leaderboard">
-            <div style="text-align:center; color:#3498db; margin-bottom:10px; border-bottom: 2px solid #3498db; padding-bottom:5px;">TOP TECHS</div>
+            <div style="text-align:center; color:#3498db; margin-bottom:10px; border-bottom: 2px solid #3498db; padding-bottom:5px; font-size:10px;">TOP TECHNICIANS</div>
             <div id="leaderboard-list">Loading...</div>
         </div>
     </div>
@@ -284,6 +306,7 @@
         <h1>GAME OVER</h1>
         <p id="end-reason" style="color: var(--danger-color);">CRASHED!</p>
         <p id="end-score">EARNINGS: $0</p>
+        <p style="font-size:10px; color:#aaa; margin-top:-10px;">(HIGH SCORE: $<span id="local-high-score">0</span>)</p>
         
         <div id="input-container">
             <input type="text" id="username" placeholder="AAA" maxlength="3">
@@ -297,23 +320,18 @@
         <p>You reached the Master Chiller!</p>
         <p id="win-score" style="font-size: 24px; color: gold;">$0</p>
         <div id="win-input-container" style="margin: 15px 0;">
-             <input type="text" id="win-username" placeholder="AAA" maxlength="3" style="background:#333; border:2px solid #fff; color:#fff; padding:10px; font-family:'Press Start 2P'; width:150px; text-align:center;">
+             <input type="text" id="win-username" placeholder="AAA" maxlength="3">
         </div>
         <button class="btn-retro" onclick="window.submitWinScore()">SUBMIT & RETURN</button>
     </div>
 </div>
 
 <script type="module">
-/**
- * SUPER TECH - Refactored Scalable Engine with Firebase Leaderboard
- */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- FIREBASE SETUP ---
-
-// User's provided config (Fallback)
 const userFirebaseConfig = {
   apiKey: "AIzaSyAjvlIYsfGhyBf7k7Z-MSj2LH73eOE3P0E",
   authDomain: "super-tech-484616.firebaseapp.com",
@@ -324,7 +342,6 @@ const userFirebaseConfig = {
   measurementId: "G-LK5824QF4D"
 };
 
-// Use environment config if available (for preview), else use user config (for export)
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
@@ -336,30 +353,39 @@ let leaderboardData = [];
 let currentUser = null;
 
 async function initFirebase() {
-    // Monitor Auth State
     onAuthStateChanged(auth, (user) => {
         currentUser = user;
         if (user) {
-            document.getElementById('user-status').innerText = `Signed in as: ${user.displayName || 'Anonymous'}`;
+            let name = user.displayName || 'Anonymous';
+            if(name.length > 10) name = name.substring(0,10) + '...';
+            document.getElementById('user-status').innerText = `Tech: ${name}`;
             if(user.displayName) {
                 document.getElementById('btn-google-login').style.display = 'none';
             }
             loadLeaderboard();
         } else {
-            // Default to anonymous if not signed in
-            signInAnonymously(auth).catch(e => console.log("Anon auth disabled or failed", e));
+            signInAnonymously(auth).catch(e => {
+                console.error("Anon Auth Failed:", e);
+                const status = document.getElementById('user-status');
+                if (e.code === 'auth/admin-restricted-operation') {
+                    status.innerText = "Leaderboard: Offline (Auth Config)";
+                    status.style.color = "#e74c3c";
+                    document.getElementById('leaderboard-list').innerHTML = "<div>Scores Offline</div>";
+                } else {
+                    status.innerText = "Auth Failed";
+                }
+            });
         }
     });
 }
 
-// Google Login Function
 window.loginGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {
         await signInWithPopup(auth, provider);
     } catch (error) {
         console.error("Google Sign-In Error", error);
-        alert("Sign-in failed. Popup might be blocked in this preview.");
+        alert("Sign-in failed. Popup might be blocked.");
     }
 };
 
@@ -368,21 +394,19 @@ async function loadLeaderboard() {
     list.innerHTML = "Loading...";
     
     try {
-        // Fetch from strict path required by environment
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'));
         const snapshot = await getDocs(q);
         
         let scores = [];
         snapshot.forEach(doc => scores.push(doc.data()));
         
-        // Sort descending by score client-side
         scores.sort((a, b) => b.score - a.score);
-        leaderboardData = scores.slice(0, 10); // Top 10
+        leaderboardData = scores.slice(0, 10); 
         
         renderLeaderboard();
     } catch (e) {
         console.error("Fetch failed", e);
-        list.innerText = "Leaderboard Offline";
+        list.innerHTML = "<div style='padding:10px;'>Leaderboard Offline</div>";
     }
 }
 
@@ -391,7 +415,7 @@ function renderLeaderboard() {
     list.innerHTML = "";
     
     if (leaderboardData.length === 0) {
-        list.innerHTML = "<div style='padding:10px;'>No records yet. Be the first!</div>";
+        list.innerHTML = "<div style='padding:10px;'>No records yet.</div>";
         return;
     }
     
@@ -407,9 +431,11 @@ function renderLeaderboard() {
 }
 
 async function saveScore(name, score) {
+    const localHigh = localStorage.getItem('hvac_high_score') || 0;
+    if (score > localHigh) localStorage.setItem('hvac_high_score', score);
+
     if (!auth.currentUser) return;
     
-    // Use Google Display Name if name is empty, or fallback to AAA
     let finalName = name || (currentUser.displayName ? currentUser.displayName.substring(0,3).toUpperCase() : "UNK");
     if(finalName.length > 3) finalName = finalName.substring(0, 3).toUpperCase();
     
@@ -422,7 +448,7 @@ async function saveScore(name, score) {
     
     try {
         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), entry);
-        await loadLeaderboard(); // Refresh
+        await loadLeaderboard();
     } catch (e) {
         console.error("Save failed", e);
     }
@@ -437,40 +463,24 @@ const Config = {
     MaxSpeedLvl2: 1000,
     FuelRateLvl1: 5,
     FuelRateLvl2: 7,
-    Earnings: {
-        Fix: 50,
-        RefuelCost: 100,
-        Bonus: 250,
-        EnemyKill: 100
-    },
-    Colors: {
-        GrassDay: '#2c3e50',
-        GrassNight: '#1a0b2e',
-        RoadDay: '#7f8c8d',
-        RoadNight: '#34495e'
-    }
+    Earnings: { Fix: 50, RefuelCost: 100, Bonus: 250, EnemyKill: 100 },
+    Colors: { GrassDay: '#2c3e50', GrassNight: '#1a0b2e', RoadDay: '#7f8c8d', RoadNight: '#34495e' }
 };
 
 // --- SYSTEM: INPUT ---
 const Input = {
     keys: { ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false, Space: false },
-    
     init() {
         window.addEventListener('keydown', e => this.handleKey(e.code, true));
         window.addEventListener('keyup', e => this.handleKey(e.code, false));
-        
-        // Touch Bindings
         this.bindTouch('dpad-left', 'ArrowLeft');
         this.bindTouch('dpad-right', 'ArrowRight');
         this.bindTouch('dpad-up', 'ArrowUp');
         this.bindTouch('dpad-down', 'ArrowDown');
         this.bindTouch('btn-action', 'Space');
-
-        // Responsive visibility
         this.checkMobile();
         window.addEventListener('resize', () => this.checkMobile());
     },
-
     handleKey(code, isDown) {
         if (this.keys.hasOwnProperty(code)) {
             if(code === 'Space' && isDown && this.keys.Space) return;
@@ -478,18 +488,15 @@ const Input = {
             if(code === 'Space' && isDown && Game.scene) Game.scene.onAction();
         }
     },
-
     bindTouch(id, code) {
         const el = document.getElementById(id);
         if(!el) return;
         el.addEventListener('touchstart', (e) => { e.preventDefault(); this.handleKey(code, true); });
         el.addEventListener('touchend', (e) => { e.preventDefault(); this.handleKey(code, false); });
     },
-
     checkMobile() {
         const isMobile = window.innerWidth < 900 || ('ontouchstart' in window);
         document.getElementById('mobile-controls').style.display = isMobile ? 'block' : 'none';
-        
         if(Game.scene instanceof DrivingScene) {
              document.getElementById('dpad-up').style.display = 'flex';
              document.getElementById('dpad-down').style.display = 'flex';
@@ -502,104 +509,63 @@ const Input = {
 
 // --- SYSTEM: AUDIO ---
 const Audio = {
-    ctx: null,
-    muted: false,
-    timer: null,
-    beat: 0,
-    tempo: 107,
-
-    init() {
-        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    },
-
-    toggleMute() {
-        this.muted = !this.muted;
-        if(this.muted) this.stopMusic();
-        else this.startMusic();
-    },
-
+    ctx: null, muted: false, timer: null, beat: 0, tempo: 107,
+    init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+    toggleMute() { this.muted = !this.muted; if(this.muted) this.stopMusic(); else this.startMusic(); },
     startMusic(bpm = 107) {
         if(this.muted) return;
         this.init();
         if(this.ctx.state === 'suspended') this.ctx.resume();
         this.stopMusic();
-        this.beat = 0;
-        this.tempo = bpm;
+        this.beat = 0; this.tempo = bpm;
         this.timer = setInterval(() => this.playBeat(), this.tempo);
     },
-
-    stopMusic() {
-        if(this.timer) clearInterval(this.timer);
-    },
-
+    stopMusic() { if(this.timer) clearInterval(this.timer); },
     playBeat() {
         if(!this.ctx || this.muted) return;
         const t = this.ctx.currentTime;
-        
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain); gain.connect(this.ctx.destination);
-        osc.type = 'sawtooth';
+        const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination); osc.type = 'sawtooth';
         
         const notes = [82.41, 82.41, 82.41, 82.41, 98.00, 82.41, 110.00, 98.00]; 
         let freq = notes[this.beat % 8];
-        
         if(Game.level >= 2) freq *= 1.122; 
-        if(Game.level === 3) freq *= 1.122;
-
+        
         osc.frequency.setValueAtTime(freq, t);
         gain.gain.setValueAtTime(0.15, t);
         gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
         osc.start(t); osc.stop(t + 0.1);
 
         if (this.beat % 4 === 0) {
-            const kOsc = this.ctx.createOscillator();
-            const kGain = this.ctx.createGain();
+            const kOsc = this.ctx.createOscillator(); const kGain = this.ctx.createGain();
             kOsc.connect(kGain); kGain.connect(this.ctx.destination);
-            kOsc.frequency.setValueAtTime(150, t);
-            kOsc.frequency.exponentialRampToValueAtTime(0.01, t + 0.1);
-            kGain.gain.setValueAtTime(0.4, t);
-            kGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            kOsc.frequency.setValueAtTime(150, t); kOsc.frequency.exponentialRampToValueAtTime(0.01, t + 0.1);
+            kGain.gain.setValueAtTime(0.4, t); kGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
             kOsc.start(t); kOsc.stop(t + 0.1);
         }
-        
         this.beat++;
     },
-
     sfx(type) {
         if(!this.ctx || this.muted) return;
         const t = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+        const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
         osc.connect(gain); gain.connect(this.ctx.destination);
 
         if (type === 'jump' || type === 'throw') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(200, t);
-            osc.frequency.linearRampToValueAtTime(400, t + 0.1);
-            gain.gain.setValueAtTime(0.1, t);
-            gain.gain.linearRampToValueAtTime(0, t + 0.1);
+            osc.type = 'square'; osc.frequency.setValueAtTime(200, t); osc.frequency.linearRampToValueAtTime(400, t + 0.1);
+            gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 0.1);
             osc.start(t); osc.stop(t + 0.1);
         } else if (type === 'crash') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(100, t);
-            osc.frequency.exponentialRampToValueAtTime(10, t + 0.3);
-            gain.gain.setValueAtTime(0.2, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, t); osc.frequency.exponentialRampToValueAtTime(10, t + 0.3);
+            gain.gain.setValueAtTime(0.2, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
             osc.start(t); osc.stop(t + 0.3);
         } else if (type === 'score') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, t);
-            osc.frequency.setValueAtTime(1200, t + 0.1);
-            gain.gain.setValueAtTime(0.1, t);
-            gain.gain.linearRampToValueAtTime(0, t + 0.3);
+            osc.type = 'sine'; osc.frequency.setValueAtTime(600, t); osc.frequency.setValueAtTime(1200, t + 0.1);
+            gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 0.3);
             osc.start(t); osc.stop(t + 0.3);
         } else if (type === 'levelup') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(440, t);
-            osc.frequency.setValueAtTime(880, t + 0.5);
-            gain.gain.setValueAtTime(0.1, t);
-            gain.gain.linearRampToValueAtTime(0.0, t + 1.0);
+            osc.type = 'square'; osc.frequency.setValueAtTime(440, t); osc.frequency.setValueAtTime(880, t + 0.5);
+            gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0.0, t + 1.0);
             osc.start(t); osc.stop(t + 1.0);
         }
     }
@@ -607,14 +573,10 @@ const Audio = {
 
 // --- BASE CLASSES ---
 class Entity {
-    constructor(x, y, w, h) {
-        this.x = x; this.y = y; this.width = w; this.height = h;
-        this.active = true;
-    }
+    constructor(x, y, w, h) { this.x = x; this.y = y; this.width = w; this.height = h; this.active = true; }
 }
 
-// --- SCENE: DRIVING (Levels 1 & 2) ---
-
+// --- SCENE: DRIVING ---
 class DrivingScene {
     constructor(level) {
         this.level = level;
@@ -627,51 +589,37 @@ class DrivingScene {
         
         document.getElementById('fuel-container').style.display = 'block';
         Input.checkMobile(); 
+        
+        // Setup initial render for menu "Attract Mode" logic (if needed)
+        // But for actual gameplay, we start fresh.
     }
 
     onAction() {
-        // Player Y on screen is fixed at bottom
-        const playerScreenY = Game.canvas.height - 100 - this.player.y;
+        const playerY = Game.canvas.height - 100 - this.player.y;
         let acted = false;
-
         this.entities.forEach(e => {
-            // Check vertical overlap on screen
-            // Since we move world down, e.y IS the screen Y coordinate in this logic
-            if (Math.abs(e.y - playerScreenY) < 120) {
+            if (Math.abs(e.y - playerY) < 120) {
                 const aligned = (e.side === -1 && this.player.x < -50) || (e.side === 1 && this.player.x > 50);
                 if (aligned) {
                     if (e.type === 'house' && e.needsService && !e.serviced) {
-                        e.serviced = true;
-                        Game.addScore(Config.Earnings.Fix);
-                        Audio.sfx('score');
-                        this.entities.push(new Projectile(this.player.x, playerScreenY, e.x, e.y));
-                        acted = true;
+                        e.serviced = true; Game.addScore(Config.Earnings.Fix); Audio.sfx('score');
+                        this.entities.push(new Projectile(this.player.x, playerY, e.x, e.y)); acted = true;
                     } else if (e.type === 'gas' && !e.used) {
-                        e.used = true;
-                        Game.refuel();
-                        Game.addScore(-Config.Earnings.RefuelCost);
-                        Audio.sfx('score');
-                        acted = true;
+                        e.used = true; Game.refuel(); Game.addScore(-Config.Earnings.RefuelCost); Audio.sfx('score'); acted = true;
                     } else if (e.type === 'supply' && !e.used) {
-                        e.used = true;
-                        Game.addScore(Config.Earnings.Bonus);
-                        Audio.sfx('score');
-                        acted = true;
+                        e.used = true; Game.addScore(Config.Earnings.Bonus); Audio.sfx('score'); acted = true;
                     }
                 }
             }
         });
-
         if(acted) Audio.sfx('throw');
     }
 
     update(dt) {
         const maxSpeed = this.level === 2 ? Config.MaxSpeedLvl2 : Config.MaxSpeedLvl1;
         if(this.speed < maxSpeed) this.speed += dt * 10;
-        
         const moveAmt = this.speed * dt;
-        this.distance += moveAmt; 
-        
+        this.distance += moveAmt;
         Game.consumeFuel(dt * (this.level === 2 ? Config.FuelRateLvl2 : Config.FuelRateLvl1));
 
         if (Input.keys.ArrowLeft) this.player.x -= 300 * dt;
@@ -696,35 +644,25 @@ class DrivingScene {
         }
 
         this.entities.forEach(e => {
-            if(e instanceof Projectile) {
-                e.update(dt);
-            } else {
-                e.y += moveAmt; 
-                if (e.type === 'traffic') e.y += (e.speed || 200) * dt; 
-            }
+            if(e instanceof Projectile) e.update(dt);
+            else { e.y += moveAmt; if (e.type === 'traffic') e.y += (e.speed || 200) * dt; }
         });
 
         this.entities = this.entities.filter(e => {
             if(e instanceof Projectile) return e.active;
             return e.y < Game.canvas.height + 200;
         });
-
         this.checkCollisions();
     }
 
     spawnHazard() {
         const startY = -200;
         const typeRoll = Math.random();
-        
-        if (typeRoll < 0.6) { // Traffic
+        if (typeRoll < 0.6) {
             const lane = (Math.floor(Math.random()*3)-1);
             const isSpeeder = Math.random() < 0.2;
-            this.entities.push({ 
-                type: 'traffic', x: lane*(Config.RoadWidth/3), y: startY, 
-                speed: (400 + Math.random()*200) + (this.level===2?150:0) + (isSpeeder?300:0), 
-                width: 40, height: 60, speeder: isSpeeder
-            });
-        } else { // Obstacle
+            this.entities.push({ type: 'traffic', x: lane*(Config.RoadWidth/3), y: startY, speed: (400 + Math.random()*200) + (this.level===2?150:0) + (isSpeeder?300:0), width: 40, height: 60, speeder: isSpeeder });
+        } else {
             const obsType = this.level === 2 ? (Math.random()>0.6?'oil':(Math.random()>0.5?'barrel':'trash')) : (Math.random()>0.6?'oil':(Math.random()>0.9?'rock':'cone'));
             this.entities.push({ type: 'obstacle', x: (Math.floor(Math.random()*3)-1)*(Config.RoadWidth/3), y: startY, width: 40, height: 40, kind: obsType });
         }
@@ -735,13 +673,7 @@ class DrivingScene {
         const typeRoll = Math.random();
         const side = Math.random() > 0.5 ? 1 : -1;
         const xPos = side * 280; 
-        
-        const conflict = this.entities.some(e => 
-            (e.type==='house'||e.type==='gas'||e.type==='supply') && 
-            e.side === side && 
-            Math.abs(e.y - startY) < 350 
-        );
-        
+        const conflict = this.entities.some(e => (e.type==='house'||e.type==='gas'||e.type==='supply') && e.side === side && Math.abs(e.y - startY) < 350);
         if(conflict) return;
 
         if (typeRoll < 0.1) this.entities.push({ type: 'supply', x: xPos, y: startY, side: side, used: false });
@@ -750,85 +682,60 @@ class DrivingScene {
     }
 
     checkCollisions() {
-        const playerScreenY = Game.canvas.height - 100 - this.player.y;
-        
         const pRect = { 
-            l: this.player.x - this.player.width/2 + 5, 
-            r: this.player.x + this.player.width/2 - 5, 
-            t: playerScreenY - this.player.height/2 + 5, 
-            b: playerScreenY + this.player.height/2 - 5 
+            l: this.player.x - this.player.width/2 + 5, r: this.player.x + this.player.width/2 - 5, 
+            t: Game.canvas.height - 100 - this.player.y - this.player.height/2 + 5, 
+            b: Game.canvas.height - 100 - this.player.y + this.player.height/2 - 5 
         };
-
         this.entities.forEach(e => {
             if (e.type === 'traffic' || e.type === 'obstacle') {
-                const eL = e.x - (e.width||40)/2;
-                const eR = e.x + (e.width||40)/2;
-                const eT = e.y - (e.height||40)/2;
-                const eB = e.y + (e.height||40)/2;
-
+                const eL = e.x - (e.width||40)/2; const eR = e.x + (e.width||40)/2;
+                const eT = e.y - (e.height||40)/2; const eB = e.y + (e.height||40)/2;
                 if (pRect.l < eR && pRect.r > eL && pRect.t < eB && pRect.b > eT) {
-                    if(e.type === 'obstacle' && e.kind === 'oil') {
-                        Audio.sfx('score'); 
-                        // Slide logic TODO
-                    } else {
-                        Audio.sfx('crash');
-                        Game.shake(0.5);
-                        this.speed = Math.max(200, this.speed * 0.5);
-                        e.y = 2000; 
-                    }
+                    if(e.type === 'obstacle' && e.kind === 'oil') Audio.sfx('score');
+                    else { Audio.sfx('crash'); Game.shake(0.5); this.speed = Math.max(200, this.speed * 0.5); e.y = 2000; }
                 }
             }
         });
     }
 
     draw(ctx) {
+        // Draw World (Attract Mode Logic)
+        // If scene isn't active (like in menu), we might just draw a rolling road.
+        // But draw() calls this.draw() so we are good.
+        
         const scale = Math.min(1, ctx.canvas.width / Config.TotalViewWidth);
         const cx = ctx.canvas.width / 2;
         
         ctx.save();
-        ctx.translate(cx, 0); 
-        ctx.scale(scale, scale);
-        
-        // Logical Center X is 0 in this transformed space
+        ctx.translate(cx, 0); ctx.scale(scale, scale);
         
         // Background
         ctx.fillStyle = this.level === 2 ? Config.Colors.GrassNight : Config.Colors.GrassDay;
         ctx.fillRect(-Config.TotalViewWidth/2, 0, Config.TotalViewWidth, ctx.canvas.height/scale);
-        
-        if(this.level === 2) {
-            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(250, 80, 40, 0, Math.PI*2); ctx.fill();
-        }
+        if(this.level === 2) { ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(250, 80, 40, 0, Math.PI*2); ctx.fill(); }
         
         // Road
         const roadH = ctx.canvas.height / scale; 
         ctx.fillStyle = this.level === 2 ? Config.Colors.RoadNight : Config.Colors.RoadDay;
         ctx.fillRect(-Config.RoadWidth/2, 0, Config.RoadWidth, roadH);
         
-        // Lines
         ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
         ctx.setLineDash([40, 40]); ctx.lineDashOffset = -this.distance;
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, roadH); ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, roadH); ctx.stroke(); ctx.setLineDash([]);
 
+        // Objects
         this.entities.sort((a,b) => a.y - b.y).forEach(e => {
             ctx.save();
-            
-            if(e instanceof Projectile) {
-                 ctx.translate(e.x, e.y);
-                 e.draw(ctx);
-            } else {
-                 ctx.translate(e.x, e.y);
-                 this.drawEntity(ctx, e);
-            }
-            
+            if(e instanceof Projectile) { ctx.translate(e.x, e.y); e.draw(ctx); } 
+            else { ctx.translate(e.x, e.y); this.drawEntity(ctx, e); }
             ctx.restore();
         });
 
         // Player
         ctx.save();
-        const playerScreenY = Game.canvas.height/scale - 100 - this.player.y;
-        ctx.translate(this.player.x, playerScreenY);
-        
+        const playerDrawY = roadH - 100 - this.player.y;
+        ctx.translate(this.player.x, playerDrawY);
         ctx.fillStyle = '#ecf0f1'; ctx.fillRect(-20, -35, 40, 70);
         ctx.fillStyle = '#3498db'; ctx.fillRect(-20, -25, 40, 40); 
         ctx.fillStyle = 'white'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.fillText('TECH',0,5);
@@ -836,11 +743,9 @@ class DrivingScene {
         if(Input.keys.ArrowDown) {
             ctx.fillStyle = 'red'; ctx.shadowColor = 'red'; ctx.shadowBlur = 10;
             ctx.fillRect(-18, 30, 10, 5); ctx.fillRect(8, 30, 10, 5);
-            ctx.shadowBlur = 0;
         }
         ctx.restore();
-        
-        ctx.restore(); // End scale
+        ctx.restore(); 
     }
 
     drawEntity(ctx, e) {
@@ -854,83 +759,50 @@ class DrivingScene {
                 ctx.fillStyle = 'red'; ctx.fillText('!', -5, -75);
             }
         } else if (e.type === 'gas') {
-            ctx.fillStyle = '#2ecc71'; ctx.fillRect(-40, -40, 80, 60);
-            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText('GAS', -15, -10);
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(-40, -40, 80, 60); ctx.fillStyle = 'white'; ctx.fillText('GAS', -15, -10);
         } else if (e.type === 'supply') {
-            ctx.fillStyle = '#d35400'; ctx.fillRect(-40, -40, 80, 60);
-            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText('PARTS', -20, -10);
+            ctx.fillStyle = '#d35400'; ctx.fillRect(-40, -40, 80, 60); ctx.fillStyle = 'white'; ctx.fillText('PARTS', -20, -10);
         } else if (e.type === 'traffic') {
-            ctx.fillStyle = e.speeder ? '#ff0033' : (this.level===2 ? '#555' : '#e74c3c');
-            ctx.fillRect(-20, -30, 40, 60);
-            ctx.fillStyle = e.speeder ? '#8bf' : '#f1c40f';
-            if(this.level===2) { 
-               ctx.fillStyle='#fff'; ctx.globalAlpha=0.3; 
-               ctx.beginPath(); ctx.moveTo(-15,30); ctx.lineTo(-30,100); ctx.lineTo(30,100); ctx.lineTo(15,30); ctx.fill(); ctx.globalAlpha=1; 
-            }
-            ctx.fillRect(-18, 25, 10, 5); ctx.fillRect(8, 25, 10, 5);
+            ctx.fillStyle = e.speeder ? '#ff0033' : (this.level===2 ? '#555' : '#e74c3c'); ctx.fillRect(-20, -30, 40, 60);
+            ctx.fillStyle = e.speeder ? '#8bf' : '#f1c40f'; ctx.fillRect(-18, 25, 10, 5); ctx.fillRect(8, 25, 10, 5);
         } else if (e.type === 'obstacle') {
-            if(e.kind === 'barrel') {
-                ctx.fillStyle = '#e67e22'; ctx.fillRect(-15,-20,30,40);
-                ctx.fillStyle = '#fff'; ctx.fillRect(-15,-10,30,10); ctx.fillRect(-15,10,30,10);
-            } else if (e.kind === 'trash') {
-                ctx.fillStyle = '#95a5a6'; ctx.fillRect(-12,-18,24,36);
-            } else if (e.kind === 'oil') {
-                ctx.fillStyle = '#111'; ctx.globalAlpha=0.8; ctx.beginPath(); ctx.ellipse(0,10,25,15,0,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
-            } else {
-                ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(15,20); ctx.lineTo(-15,20); ctx.fill();
-            }
+            if(e.kind === 'barrel') { ctx.fillStyle = '#e67e22'; ctx.fillRect(-15,-20,30,40); }
+            else if (e.kind === 'oil') { ctx.fillStyle = '#111'; ctx.globalAlpha=0.8; ctx.beginPath(); ctx.ellipse(0,10,25,15,0,0,Math.PI*2); ctx.fill(); }
+            else { ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(15,20); ctx.lineTo(-15,20); ctx.fill(); }
         }
     }
 }
 
 class Projectile {
     constructor(startX, startY, targetX, targetY) {
-        this.rawX = startX; 
-        this.rawY = startY; 
-        this.targetX = targetX;
-        this.targetY = targetY;
-        this.t = 0;
-        this.active = true;
-        this.rot = 0;
+        this.rawX = startX; this.rawY = startY; this.targetX = targetX; this.targetY = targetY;
+        this.t = 0; this.active = true; this.rot = 0;
     }
     update(dt) {
-        this.t += dt * 3;
-        this.rot += 15 * dt;
-        if(this.t >= 1) this.active = false;
+        this.t += dt * 3; this.rot += 15 * dt; if(this.t >= 1) this.active = false;
     }
     draw(ctx) {
         const curX = this.rawX + (this.targetX - this.rawX) * this.t;
         const curY = this.rawY + (this.targetY - this.rawY) * this.t;
-        
-        ctx.save();
-        ctx.translate(curX, curY);
-        ctx.rotate(this.rot);
+        ctx.save(); ctx.translate(curX, curY); ctx.rotate(this.rot);
         ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-10, -3, 20, 6);
-        ctx.beginPath(); ctx.arc(-10, 0, 6, 0, Math.PI * 2); ctx.arc(10, 0, 6, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
     }
 }
 
 // --- SCENE: PLATFORMER (Level 3) ---
-
 class PlatformerScene {
     constructor() {
         this.tech = { x: 100, y: 300, w: 30, h: 50, vx: 0, vy: 0, grounded: false, facingRight: true };
-        this.camX = 0;
-        this.platforms = [];
-        this.enemies = [];
-        this.projectiles = [];
+        this.camX = 0; this.platforms = []; this.enemies = []; this.projectiles = [];
         this.initLevel();
-        
         document.getElementById('fuel-container').style.display = 'none';
         Input.checkMobile();
     }
-
     initLevel() {
         let x = 0;
         for(let i=0; i<20; i++) {
-            let w = 300 + Math.random()*200;
-            let gap = 50 + Math.random()*150;
+            let w = 300 + Math.random()*200; let gap = 50 + Math.random()*150;
             this.platforms.push({ x, y: 400 + Math.random()*100, w, h: 400 });
             if(i>2) this.enemies.push({ x: x+w/2, y: 350, w: 30, h: 30, type: 'bat', active: true, t: Math.random() });
             x += w + gap;
@@ -938,288 +810,189 @@ class PlatformerScene {
         this.platforms.push({ x, y: 400, w: 600, h: 400 });
         this.enemies.push({ x: x+300, y: 250, w: 100, h: 150, type: 'boss', active: true, hp: 5 });
     }
-
     onAction() {
         Audio.sfx('throw');
-        this.projectiles.push({
-            x: this.tech.x, y: this.tech.y + 20, vx: this.tech.facingRight ? 600 : -600, active: true
-        });
+        this.projectiles.push({ x: this.tech.x, y: this.tech.y + 20, vx: this.tech.facingRight ? 600 : -600, active: true });
     }
-
     update(dt) {
         if (Input.keys.ArrowRight) { this.tech.vx = 300; this.tech.facingRight = true; }
         else if (Input.keys.ArrowLeft) { this.tech.vx = -300; this.tech.facingRight = false; }
         else { this.tech.vx = 0; }
-
-        if (Input.keys.ArrowUp && this.tech.grounded) {
-            this.tech.vy = -600; this.tech.grounded = false; Audio.sfx('jump');
-        }
-
-        this.tech.vy += 1500 * dt;
-        this.tech.x += this.tech.vx * dt;
-        this.tech.y += this.tech.vy * dt;
-
+        if (Input.keys.ArrowUp && this.tech.grounded) { this.tech.vy = -600; this.tech.grounded = false; Audio.sfx('jump'); }
+        this.tech.vy += 1500 * dt; this.tech.x += this.tech.vx * dt; this.tech.y += this.tech.vy * dt;
+        
         this.tech.grounded = false;
         if(this.tech.y > Game.canvas.height + 100) Game.gameOver("FELL OFF THE ROOF!");
-
+        
         this.platforms.forEach(p => {
-            if(this.tech.x+this.tech.w > p.x && this.tech.x < p.x+p.w &&
-               this.tech.y+this.tech.h > p.y && this.tech.y+this.tech.h < p.y+p.h+30 && this.tech.vy >= 0) {
-                this.tech.y = p.y - this.tech.h;
-                this.tech.vy = 0;
-                this.tech.grounded = true;
+            if(this.tech.x+this.tech.w > p.x && this.tech.x < p.x+p.w && this.tech.y+this.tech.h > p.y && this.tech.y+this.tech.h < p.y+p.h+30 && this.tech.vy >= 0) {
+                this.tech.y = p.y - this.tech.h; this.tech.vy = 0; this.tech.grounded = true;
             }
         });
-
         this.camX = Math.max(0, this.tech.x - 200);
 
         this.projectiles.forEach(p => {
             p.x += p.vx * dt;
             this.enemies.forEach(e => {
                 if(e.active && p.active && p.x > e.x && p.x < e.x+e.w && p.y > e.y && p.y < e.y+e.h) {
-                    p.active = false;
-                    Audio.sfx('crash');
-                    if(e.type === 'boss') {
-                        e.hp--;
-                        if(e.hp<=0) { e.active = false; Game.win(); }
-                    } else {
-                        e.active = false;
-                        Game.addScore(100);
-                    }
+                    p.active = false; Audio.sfx('crash');
+                    if(e.type === 'boss') { e.hp--; if(e.hp<=0) { e.active = false; Game.win(); } } else { e.active = false; Game.addScore(100); }
                 }
             });
         });
         
         this.enemies.forEach(e => {
-            if(!e.active) return;
-            if(e.type === 'bat') { e.x -= 100 * dt; e.y += Math.sin(Date.now()/200)*2; }
-            if(this.tech.x < e.x+e.w && this.tech.x+this.tech.w > e.x &&
-               this.tech.y < e.y+e.h && this.tech.y+this.tech.h > e.y) {
-                Game.gameOver("HIT BY ENEMY!");
+            if(e.active) {
+                if(e.type === 'bat') { e.x -= 100 * dt; e.y += Math.sin(Date.now()/200)*2; }
+                if(this.tech.x < e.x+e.w && this.tech.x+this.tech.w > e.x && this.tech.y < e.y+e.h && this.tech.y+this.tech.h > e.y) Game.gameOver("HIT BY ENEMY!");
             }
         });
     }
-
     draw(ctx) {
         const grad = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
         grad.addColorStop(0, '#0f0c29'); grad.addColorStop(1, '#302b63');
         ctx.fillStyle = grad; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-        ctx.save();
-        ctx.translate(-this.camX, 0);
-
+        ctx.save(); ctx.translate(-this.camX, 0);
         ctx.fillStyle = '#555';
-        this.platforms.forEach(p => {
-            ctx.fillRect(p.x, p.y, p.w, p.h);
-            ctx.fillStyle = '#444'; ctx.fillRect(p.x, p.y, p.w, 10); ctx.fillStyle = '#555';
-        });
-
+        this.platforms.forEach(p => { ctx.fillRect(p.x, p.y, p.w, p.h); ctx.fillStyle = '#444'; ctx.fillRect(p.x, p.y, p.w, 10); ctx.fillStyle = '#555'; });
         this.enemies.forEach(e => {
-            if(!e.active) return;
-            if(e.type === 'bat') {
-                ctx.fillStyle = '#3498db';
-                ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x+e.w/2, e.y+e.h); ctx.lineTo(e.x+e.w, e.y); ctx.fill();
-            } else if (e.type === 'boss') {
-                ctx.fillStyle = '#2c3e50'; ctx.fillRect(e.x, e.y, e.w, e.h);
-                ctx.fillStyle = '#e74c3c'; ctx.fillRect(e.x+10, e.y+10, e.w-20, 20);
+            if(e.active) {
+                if(e.type === 'bat') { ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x+e.w/2, e.y+e.h); ctx.lineTo(e.x+e.w, e.y); ctx.fill(); }
+                else { ctx.fillStyle = '#2c3e50'; ctx.fillRect(e.x, e.y, e.w, e.h); }
             }
         });
-
         ctx.fillStyle = '#ecf0f1'; ctx.fillRect(this.tech.x, this.tech.y, this.tech.w, this.tech.h);
-        ctx.fillStyle = '#3498db'; ctx.fillRect(this.tech.x, this.tech.y, this.tech.w, 10);
-
-        ctx.fillStyle = '#bdc3c7';
-        this.projectiles.forEach(p => { if(p.active) ctx.fillRect(p.x, p.y, 20, 5); });
-
+        ctx.fillStyle = '#bdc3c7'; this.projectiles.forEach(p => { if(p.active) ctx.fillRect(p.x, p.y, 20, 5); });
         ctx.restore();
     }
 }
 
 // --- GAME ENGINE ---
-
 const Game = {
-    canvas: null,
-    ctx: null,
-    lastTime: 0,
-    scene: null,
-    score: 0,
-    fuel: 100,
-    shiftTime: 0,
-    level: 1,
-    shakeTimer: 0,
-
+    canvas: null, ctx: null, lastTime: 0, scene: null, score: 0, fuel: 100, shiftTime: 0, level: 1, shakeTimer: 0,
     init() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         initFirebase();
         Input.init();
-        
         document.getElementById('btn-music').onclick = () => Audio.toggleMute();
         document.getElementById('btn-menu').onclick = () => this.showMenu();
-        
         this.resize();
         window.addEventListener('resize', () => this.resize());
-        
         this.showMenu();
+        // Start background driving scene for menu "Attract Mode"
+        this.scene = new DrivingScene(1); 
         this.loop(0);
     },
-
-    resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-    },
-
+    resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; },
     start() {
-        this.score = 0;
-        this.fuel = 100;
-        this.shiftTime = 0;
-        this.level = 1;
-        this.loadLevel(1);
-        Audio.startMusic(107);
-        this.hideScreens();
+        this.score = 0; this.fuel = 100; this.shiftTime = 0; this.level = 1;
+        this.loadLevel(1); Audio.startMusic(107); this.hideScreens();
     },
-
     loadLevel(lvl) {
         this.level = lvl;
-        
         const screen = document.getElementById('screen-level');
-        const title = document.getElementById('level-title');
-        const sub = document.getElementById('level-subtitle');
-        
-        if(lvl === 1) {
-            this.scene = new DrivingScene(1);
-        } else if (lvl === 2) {
-            title.innerText = "LEVEL 2"; sub.innerText = "ON CALL";
-            screen.classList.remove('hidden');
-            Audio.sfx('levelup');
+        if(lvl === 1) { this.scene = new DrivingScene(1); }
+        else if (lvl === 2) {
+            document.getElementById('level-title').innerText = "LEVEL 2";
+            screen.classList.remove('hidden'); Audio.sfx('levelup');
             setTimeout(() => screen.classList.add('hidden'), 3000);
-            this.scene = new DrivingScene(2);
-            Audio.startMusic(90);
+            this.scene = new DrivingScene(2); Audio.startMusic(90);
         } else if (lvl === 3) {
-            title.innerText = "LEVEL 3"; sub.innerText = "ROOFTOP RUMBLE";
-            screen.classList.remove('hidden');
-            Audio.sfx('levelup');
+            document.getElementById('level-title').innerText = "LEVEL 3";
+            screen.classList.remove('hidden'); Audio.sfx('levelup');
             setTimeout(() => screen.classList.add('hidden'), 3000);
-            this.scene = new PlatformerScene();
-            Audio.startMusic(80);
+            this.scene = new PlatformerScene(); Audio.startMusic(80);
         }
     },
-
     update(dt) {
-        if(!this.scene) return;
-        
-        this.shiftTime += dt;
         if(this.shakeTimer > 0) this.shakeTimer -= dt;
+        // In menu (when start screen is visible), just update driving without player input
+        const isMenu = !document.getElementById('screen-start').classList.contains('hidden');
+        if(isMenu) {
+             if(this.scene && this.scene.update) {
+                 // Hack to animate background without player moving or dying
+                 const oldFuel = this.fuel;
+                 this.scene.speed = 200; 
+                 this.scene.update(dt);
+                 this.fuel = oldFuel; // Infinite fuel in menu
+                 this.scene.player.x = 0; // Center van
+             }
+             return;
+        }
 
+        if(!this.scene) return;
+        this.shiftTime += dt;
         this.scene.update(dt);
-
         if(this.level === 1 && this.score >= 1000) this.loadLevel(2);
         if(this.level === 2 && this.score >= 2000) this.loadLevel(3);
-
         this.updateHUD();
     },
-
     draw() {
         if(!this.scene) return;
-        
         this.ctx.save();
         if(this.shakeTimer > 0) {
-            const intensity = this.shakeTimer * 10;
-            const dx = (Math.random()-0.5)*intensity;
-            const dy = (Math.random()-0.5)*intensity;
+            const dx = (Math.random()-0.5)*10*this.shakeTimer;
+            const dy = (Math.random()-0.5)*10*this.shakeTimer;
             this.ctx.translate(dx, dy);
         }
-        
         this.scene.draw(this.ctx);
         this.ctx.restore();
-
         this.ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
-        for (let i = 0; i < this.canvas.height; i += 4) {
-            this.ctx.fillRect(0, i, this.canvas.width, 2);
-        }
+        for (let i = 0; i < this.canvas.height; i += 4) this.ctx.fillRect(0, i, this.canvas.width, 2);
     },
-
     loop(timestamp) {
         if(!this.lastTime) this.lastTime = timestamp;
         const dt = (timestamp - this.lastTime) / 1000;
         this.lastTime = timestamp;
-
-        this.update(dt);
-        this.draw();
-
+        this.update(dt); this.draw();
         requestAnimationFrame((t) => this.loop(t));
     },
-
     addScore(amount) { this.score += amount; },
-    consumeFuel(amount) {
-        this.fuel -= amount;
-        if(this.fuel <= 0) this.gameOver("OUT OF GAS!");
-    },
+    consumeFuel(amount) { this.fuel -= amount; if(this.fuel <= 0) this.gameOver("OUT OF GAS!"); },
     refuel() { this.fuel = 100; },
     shake(amount) { this.shakeTimer = amount; },
-
     updateHUD() {
         document.getElementById('hud-score').innerText = `CASH: $${this.score}`;
-        const m = Math.floor(this.shiftTime / 60);
-        const s = Math.floor(this.shiftTime % 60);
+        const m = Math.floor(this.shiftTime / 60); const s = Math.floor(this.shiftTime % 60);
         document.getElementById('hud-time').innerText = `SHIFT: ${m}:${s<10?'0':''}${s}`;
-        
         const fill = document.getElementById('fuel-fill');
         fill.style.width = `${Math.max(0, this.fuel)}%`;
-        if(this.fuel < 20) fill.classList.add('low');
-        else fill.classList.remove('low');
     },
-
     gameOver(reason) {
-        this.scene = null;
-        Audio.stopMusic();
-        Audio.sfx('crash');
+        // Stop scene
+        this.scene = null; 
+        Audio.stopMusic(); Audio.sfx('crash');
         document.getElementById('end-reason').innerText = reason;
         document.getElementById('end-score').innerText = `EARNINGS: $${this.score}`;
+        const high = localStorage.getItem('hvac_high_score') || 0;
+        document.getElementById('local-high-score').innerText = Math.max(high, this.score);
         document.getElementById('screen-gameover').classList.remove('hidden');
     },
-    
     win() {
-        this.scene = null;
-        Audio.stopMusic();
+        this.scene = null; Audio.stopMusic();
         document.getElementById('win-score').innerText = `$${this.score}`;
         document.getElementById('screen-win').classList.remove('hidden');
     },
-
     showMenu() {
-        this.scene = null;
-        Audio.stopMusic();
-        this.hideScreens();
+        Audio.stopMusic(); this.hideScreens();
         document.getElementById('screen-start').classList.remove('hidden');
+        this.scene = new DrivingScene(1); // Restart attract mode
     },
-
-    hideScreens() {
-        document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
-    }
+    hideScreens() { document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden')); }
 };
 
 window.onload = () => Game.init();
 
-// Bind global buttons to Game
+// Global Bindings
 window.Game = Game;
-window.submitScore = () => {
-    const name = document.getElementById('username').value;
-    if(name) {
-        saveScore(name, Game.score);
-        Game.showMenu();
-    }
-};
-window.submitWinScore = () => {
-    const name = document.getElementById('win-username').value;
-    if(name) {
-        saveScore(name, Game.score);
-        Game.showMenu();
-    }
-};
+window.submitScore = () => { const name = document.getElementById('username').value; if(name) { saveScore(name, Game.score); Game.showMenu(); } };
+window.submitWinScore = () => { const name = document.getElementById('win-username').value; if(name) { saveScore(name, Game.score); Game.showMenu(); } };
 window.toggleMusic = () => Audio.toggleMute();
 window.quitGame = () => Game.showMenu();
 window.resetGame = () => Game.start();
 window.startGame = () => Game.start();
+window.loginGoogle = () => window.loginGoogle();
 
 </script>
 </body>
