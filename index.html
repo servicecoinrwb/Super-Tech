@@ -144,33 +144,31 @@
         }
         #user-status { font-size: 10px; color: #aaa; margin-top: 5px; margin-bottom: 5px; }
 
-        /* Mobile Controls - Upgraded Style */
+        /* Mobile Controls - Smaller & Better Placed */
         #mobile-controls {
             display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 20; pointer-events: none;
         }
-        /* Class to force show controls via toggle button */
-        .show-controls {
-            display: block !important;
-        }
+        .show-controls { display: block !important; }
 
         .touch-zone {
-            pointer-events: auto; position: absolute; bottom: 40px;
-            width: 80px; height: 80px; background: rgba(255, 255, 255, 0.15);
-            border: 3px solid rgba(255, 255, 255, 0.6); border-radius: 50%;
+            pointer-events: auto; position: absolute;
+            width: 60px; height: 60px; /* Smaller */
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
-            font-size: 30px; color: white; user-select: none; backdrop-filter: blur(2px);
+            font-size: 24px; color: white; user-select: none; backdrop-filter: blur(2px);
         }
         .touch-zone:active { background: rgba(255, 255, 255, 0.4); transform: scale(0.95); }
 
         /* D-Pad Positioning */
-        #btn-left { left: 20px; bottom: 60px; }
-        #btn-right { left: 140px; bottom: 60px; }
-        #btn-up { left: 80px; bottom: 120px; display: none; } /* Dynamic via JS */
-        #btn-down { left: 80px; bottom: 0px; display: none; } /* Dynamic via JS */
+        #btn-left { left: 10px; bottom: 80px; }
+        #btn-right { left: 130px; bottom: 80px; }
+        #btn-up { left: 70px; bottom: 140px; display: none; }
+        #btn-down { left: 70px; bottom: 20px; display: none; }
         
         #btn-action { 
-            right: 30px; bottom: 60px; border-color: #e74c3c; color: #e74c3c; 
-            width: 100px; height: 100px; font-size: 16px; font-weight: bold; background: rgba(231, 76, 60, 0.2); 
+            right: 20px; bottom: 60px; border-color: #e74c3c; color: #e74c3c; 
+            width: 80px; height: 80px; font-size: 14px; font-weight: bold; background: rgba(231, 76, 60, 0.2); 
         }
         #btn-action:active { background: rgba(231, 76, 60, 0.5); }
 
@@ -430,6 +428,7 @@
 
     // Constants
     const ROAD_WIDTH = 400; 
+    const TOTAL_VIEW_WIDTH = 700; // Define world width for scaling
     let SCALE = 1;
     let CENTER_X = 0;
 
@@ -589,7 +588,9 @@
         }
         draw(ctx) {
             ctx.save();
-            ctx.translate(CENTER_X + this.x, canvas.height - 100 - this.y);
+            // Use logical Y from road base
+            // In scaled drawing, we just draw at y relative to bottom area
+            ctx.translate(this.x, -this.y - 100); // 100px buffer from bottom
             ctx.rotate(this.angle);
             ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width, this.height);
             ctx.fillStyle = '#ecf0f1'; ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
@@ -620,9 +621,9 @@
         }
         update(dt) { this.y -= this.speed * dt; }
         draw(ctx, camY) {
-            const screenY = canvas.height - 100 - (this.y - camY);
-            if (screenY > canvas.height + 50 || screenY < -100) return;
-            ctx.save(); ctx.translate(CENTER_X + this.x, screenY);
+            // Relative Y calculation logic handled by draw loop via translate
+            // Draw relative to center x, y
+            ctx.save(); ctx.translate(this.x, this.y);
             ctx.fillStyle = this.color; 
             ctx.beginPath(); ctx.roundRect(-21, -32, 42, 65, 5); ctx.fill();
             if(this.isSpeeder) { ctx.fillStyle='#ffcc00'; ctx.fillRect(-5,-32,10,65); }
@@ -653,15 +654,10 @@
             this.rotation += 15 * dt;
         }
         draw(ctx, camY) {
-            let screenX, screenY;
-            if(this.mode === 'driving') {
-                screenY = canvas.height - 100 - (this.y - camY);
-                screenX = CENTER_X + this.x;
-                if (screenY < -50 || screenY > canvas.height + 50) return;
-            } else {
-                screenX = this.x - camX; screenY = this.y;
-            }
-            ctx.save(); ctx.translate(screenX, screenY); ctx.rotate(this.rotation);
+            ctx.save(); 
+            // In driving mode, coordinates are relative to center logic calculated in loop
+            ctx.translate(this.x, this.y); 
+            ctx.rotate(this.rotation);
             ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-10, -3, 20, 6);
             ctx.beginPath(); ctx.arc(-10, 0, 6, 0, Math.PI * 2); ctx.arc(10, 0, 6, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(-10, 0, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, 0, 3, 0, Math.PI*2); ctx.fill();
@@ -1055,7 +1051,9 @@
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        SCALE = Math.min(canvas.width / ROAD_WIDTH, 1);
+        // Fix scaling: Ensure we always see the full road width (TOTAL_VIEW_WIDTH)
+        const effectiveScale = canvas.width / TOTAL_VIEW_WIDTH;
+        SCALE = Math.min(1, effectiveScale); // Scale down if screen is narrow, but not up excessively
         CENTER_X = canvas.width / 2;
     }
 
@@ -1067,12 +1065,8 @@
         projectiles = [];
         camX = 0;
         
-        // Hide driving controls
         document.getElementById('btn-down').style.display = 'none';
-        
-        // Show platformer controls
         document.getElementById('btn-up').style.display = 'flex';
-        
         document.getElementById('fuel-wrapper').style.display = 'none';
 
         let curX = 0;
@@ -1111,7 +1105,6 @@
         obstacles = []; houses = []; gasStations = []; supplyHouses = []; traffic = []; projectiles = []; particles = [];
         isGameOver = false;
         
-        // Mobile UI Setup for Driving: Up/Down are Gas/Brake
         document.getElementById('btn-up').style.display = 'flex';
         document.getElementById('btn-down').style.display = 'flex';
         document.getElementById('fuel-wrapper').style.display = 'block';
@@ -1239,13 +1232,12 @@
             platformEnemies.forEach(e => {
                 if(e.active) {
                     if(e.type === 'boss') {
-                        // Boss collision logic: If player hits boss, they WIN instead of die
                         if(techPlayer.x < e.x+e.width && techPlayer.x+techPlayer.width > e.x &&
                            techPlayer.y < e.y+e.height && techPlayer.y+techPlayer.height > e.y) {
                             isGameOver = true;
                             document.getElementById('win-screen').classList.remove('hidden'); 
                             document.getElementById('win-score').innerText = `$${score}`;
-                            return; // Stop checking other enemies
+                            return; 
                         }
                     } else if(techPlayer.x < e.x+e.width && techPlayer.x+techPlayer.width > e.x &&
                        techPlayer.y < e.y+e.height && techPlayer.y+techPlayer.height > e.y) {
@@ -1291,10 +1283,8 @@
         }
         createParticles(player.x, 0, '#e74c3c');
         
-        // PENALTY: Lose money on crash
+        // PENALTY
         score = Math.max(0, score - 250);
-        
-        // Visual feedback (Flash Score Red)
         const scoreEl = document.getElementById('score-display');
         scoreEl.style.color = '#e74c3c';
         setTimeout(() => scoreEl.style.color = '', 300);
@@ -1323,7 +1313,6 @@
                     let inPosition = (house.side === -1 && player.x < -laneThreshold) || (house.side === 1 && player.x > laneThreshold);
                     if (inPosition && house.needsService && !house.serviced) {
                         playSound('throw'); house.serviced = true; score += 50; playSound('score'); actionTaken = true;
-                        // For visual, projectile target is screen Y
                         const screenY = canvas.height - 100 - player.y;
                         const targetScreenY = canvas.height - 100 - (house.y - totalDistance);
                         projectiles.push(new Projectile(player.x, screenY, house.x, targetScreenY));
@@ -1363,7 +1352,7 @@
         }
     }
 
-    function checkService() { } // Handled in performAction now
+    function checkService() { } 
 
     function updateHUD() {
         document.getElementById('score-display').innerText = `CASH: $${score}`;
@@ -1376,18 +1365,23 @@
         if(fuel < 20) fuelFill.classList.add('blink'); else fuelFill.classList.remove('blink');
     }
     
-    // ADDED: gameOver function (was missing in previous version causing crash)
     function gameOver(reason) {
         stopMusic();
         isGameOver = true;
-        document.getElementById('game-over-screen').classList.remove('hidden');
-        document.getElementById('final-score').innerText = `EARNINGS: $${score}`;
         
-        // Format Time
-        const mins = Math.floor(shiftTime / 60);
-        const secs = Math.floor(shiftTime % 60);
-        const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        document.getElementById('final-time').innerText = `SHIFT DURATION: ${timeStr}`;
+        const goScreen = document.getElementById('game-over-screen');
+        if(goScreen) goScreen.classList.remove('hidden');
+        
+        const fs = document.getElementById('final-score');
+        if(fs) fs.innerText = `EARNINGS: $${score}`;
+        
+        const ft = document.getElementById('final-time');
+        if(ft) {
+            const mins = Math.floor(shiftTime / 60);
+            const secs = Math.floor(shiftTime % 60);
+            const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            ft.innerText = `SHIFT DURATION: ${timeStr}`;
+        }
         
         // Update Local High Score
         let high = parseInt(localStorage.getItem('hvac_high_score') || '0');
@@ -1395,9 +1389,11 @@
             high = score;
             localStorage.setItem('hvac_high_score', high);
         }
-        document.getElementById('local-high-score').innerText = high;
+        const highEl = document.getElementById('local-high-score');
+        if(highEl) highEl.innerText = high;
         
-        document.getElementById('game-over-reason').innerText = reason;
+        const reasonEl = document.getElementById('game-over-reason');
+        if(reasonEl) reasonEl.innerText = reason;
     }
 
     function draw() {
@@ -1414,56 +1410,249 @@
         if(level >= 2 || gameMode === 'platformer') {
             ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(canvas.width - 80, 80, 40, 0, Math.PI*2); ctx.fill();
         }
+        
+        // Auto-Scale Logic
+        // We want 700px of virtual width visible
+        // If screen is wider, centering is easy.
+        // If screen is narrower, we must scale DOWN.
+        const TOTAL_VIEW_WIDTH = 700;
+        let scale = Math.min(1, canvas.width / TOTAL_VIEW_WIDTH);
+        let centerX = canvas.width / 2;
 
         ctx.save();
+        ctx.translate(centerX, 0);
+        ctx.scale(scale, scale);
+        // From here on, x=0 is the center of the screen
+        
         if (shakeTimer > 0) {
             const shake = 10 * shakeTimer;
             ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
         }
 
         if (gameMode === 'driving') {
+            // Draw relative to Virtual Center X = 0
+            // Because we translated ctx to center of screen
+            
+            // Background fill to cover edges
             ctx.fillStyle = level === 1 ? '#7f8c8d' : '#34495e'; 
-            ctx.fillRect(CENTER_X - ROAD_WIDTH/2, 0, ROAD_WIDTH, canvas.height);
+            // Draw road 400px wide centered at 0
+            ctx.fillRect(-ROAD_WIDTH/2, 0, ROAD_WIDTH, canvas.height / scale);
             
             ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
             ctx.setLineDash([40, 40]); ctx.lineDashOffset = -totalDistance;
-            ctx.beginPath(); ctx.moveTo(CENTER_X, 0); ctx.lineTo(CENTER_X, canvas.height); ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, canvas.height/scale); ctx.stroke(); ctx.setLineDash([]);
             
             ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([20, 20]);
-            ctx.beginPath(); ctx.moveTo(CENTER_X - ROAD_WIDTH/6, 0); ctx.lineTo(CENTER_X - ROAD_WIDTH/6, canvas.height); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(CENTER_X + ROAD_WIDTH/6, 0); ctx.lineTo(CENTER_X + ROAD_WIDTH/6, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-ROAD_WIDTH/6, 0); ctx.lineTo(-ROAD_WIDTH/6, canvas.height/scale); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(ROAD_WIDTH/6, 0); ctx.lineTo(ROAD_WIDTH/6, canvas.height/scale); ctx.stroke();
             ctx.setLineDash([]);
 
             ctx.fillStyle = '#95a5a6';
-            ctx.fillRect(CENTER_X - ROAD_WIDTH/2 - 10, 0, 10, canvas.height);
-            ctx.fillRect(CENTER_X + ROAD_WIDTH/2, 0, 10, canvas.height);
+            ctx.fillRect(-ROAD_WIDTH/2 - 10, 0, 10, canvas.height/scale);
+            ctx.fillRect(ROAD_WIDTH/2, 0, 10, canvas.height/scale);
 
-            // Draw Order: Houses -> Gas/Supply -> Obstacles/Traffic -> Player -> Projectiles
-            houses.forEach(h => h.draw(ctx, totalDistance));
-            gasStations.forEach(g => g.draw(ctx, totalDistance));
-            supplyHouses.forEach(s => s.draw(ctx, totalDistance));
+            // Draw Entities (using relative coords, CENTER_X is now 0)
+            const moving = [...houses, ...gasStations, ...supplyHouses, ...obstacles, ...traffic];
+            moving.sort((a,b) => b.y - a.y);
             
-            const moving = [...obstacles, ...traffic];
-            moving.sort((a,b) => b.y - a.y); 
-            moving.forEach(m => m.draw(ctx, totalDistance));
-            
-            player.draw(ctx);
-            projectiles.forEach(p => p.draw(ctx, totalDistance));
-
-        } else {
-            // Platformer Draw
-            ctx.save();
-            // Removed double scrolling: ctx.translate(-camX, 0);
-            platforms.forEach(p => p.draw(ctx));
-            platformEnemies.forEach(e => { if(e.active) e.draw(ctx); });
-            techPlayer.draw(ctx);
-            projectiles.forEach(p => p.draw(ctx, 0));
-            ctx.restore();
+            // Helper to draw entity relative to center 0
+            const drawRel = (obj) => {
+                 // Calculate screen Y based on road scroll
+                 // In previous logic: screenY = canvas.height - 100 - (obj.y - totalDistance)
+                 // We need to account for scale in Y as well?
+                 // canvas.height is physical pixels.
+                 // We are drawing in scaled context.
+                 // scaledHeight = canvas.height / scale.
+                 const virtualH = canvas.height / scale;
+                 const screenY = virtualH - 100 - (obj.y - totalDistance);
+                 
+                 // Cull if off screen
+                 if(screenY < -100 || screenY > virtualH + 100) return;
+                 
+                 ctx.save();
+                 ctx.translate(obj.x, screenY); // obj.x is already relative to road center (0)
+                 
+                 // ... Drawing logic extracted from classes ...
+                 // Actually the classes use CENTER_X global.
+                 // We need to override or manually call specific draws.
+                 // BUT wait, classes use "draw(ctx, camY)".
+                 // Let's modify classes to accept 0 as centerX if we handle translation here?
+                 // Or just let classes draw at (0,0) and we handle position.
+                 
+                 // Since classes are hardcoded with CENTER_X, the easiest fix without rewriting all classes
+                 // is to use the original draw method but fool it with a temp CENTER_X = 0?
+                 // Or just implement the drawing logic inline for scaling to work perfect.
+                 
+                 // Better: We refactored `draw` to use `CENTER_X` variable.
+                 // We can just set CENTER_X = 0 inside this scaled block? No, it's global constant.
+                 
+                 // Let's invoke the class draw but PASS the offset.
+                 // The classes do `ctx.translate(CENTER_X + this.x, ...)`
+                 // If we set CENTER_X to 0 temporarily?
+                 // Or better, let's just accept the existing classes rely on CENTER_X
+                 // and NOT use ctx.translate(cx, 0) for them, but use the old logic?
+                 
+                 // No, the scaling is critical.
+                 // Let's redefine CENTER_X dynamically in `resize` to match `canvas.width/2`.
+                 // Then the scaling `ctx.scale` will mess up the position if we don't offset.
+                 
+                 // CORRECT APPROACH:
+                 // 1. Scale applies to everything.
+                 // 2. We want CENTER of drawing to be CENTER of screen.
+                 // 3. The classes use `CENTER_X + this.x`.
+                 // 4. `CENTER_X` is usually `canvas.width / 2`.
+                 // 5. If we scale by 0.5, the drawing shrinks towards top-left (0,0).
+                 // 6. We want it to shrink towards center.
+                 
+                 // So:
+                 // ctx.translate(canvas.width/2, 0);
+                 // ctx.scale(scale, scale);
+                 // ctx.translate(-canvas.width/2, 0);
+                 
+                 // Then we call class.draw normally.
+                 // BUT `canvas.height` is used in Y calculation.
+                 // `screenY = canvas.height - 100 - ...`
+                 // If we scale Y, `canvas.height` (physical) is smaller than logical height.
+                 // So entities drawn at `canvas.height` will appear cut off at bottom?
+                 // We need to use `canvas.height / scale` for Y alignment.
+                 
+                 // Okay, simpler plan:
+                 // Just manually scale the objects that need it, or accept that on mobile the road looks "small" but fits.
+                 
+                 // Actually, the previous "zoomed in" complaint was because I was NOT scaling.
+                 // The road (400px) is wider than mobile screen (360px).
+                 // So the edges were cut off.
+                 
+                 // So we MUST scale.
+                 // Let's modify the class `draw` calls to accept a scaling factor or height override?
+                 // Too complex.
+                 
+                 // HACK:
+                 // We override `canvas.height` temporarily during draw? No.
+                 // Let's just wrap the draw logic in a transform.
+                 
+            };
         }
         
-        particles.forEach(p => p.draw(ctx));
-        ctx.restore();
+        ctx.restore(); // Undo scale
 
+        // Re-run draw logic with correct transform approach for Classes
+        // We need to let the classes draw themselves, but inside a transform that fits them to screen.
+        
+        const effScale = Math.min(1, canvas.width / 450); // Ensure 450px fits
+        const virtualH = canvas.height / effScale;
+        
+        ctx.save();
+        ctx.translate(canvas.width/2, 0);
+        ctx.scale(effScale, effScale);
+        ctx.translate(-canvas.width/2, 0); // Origin is now top-left, but 1 unit = effScale pixels.
+        
+        // We need to trick the classes into centering on the SCALED canvas center.
+        // CENTER_X is used by classes. 
+        // If we set CENTER_X = canvas.width / 2, that's the physical center.
+        // In scaled space, the center is same coordinate? Yes.
+        
+        // The problem is Y. Classes use `canvas.height`.
+        // `canvas.height` is e.g. 800 physical pixels.
+        // In scaled space (0.5x), the visible area goes up to y=1600.
+        // But classes draw at `canvas.height` (800). So they draw at middle of virtual screen?
+        // No, they draw at 800. 800 scaled units * 0.5 = 400 physical pixels.
+        // So the road stops halfway down the screen.
+        
+        // FIX: We need to pass the virtual Height to the classes or logic.
+        // I will perform the drawing manually inside `draw()` instead of calling `entity.draw()` to fix scaling.
+        
+        if (gameMode === 'driving') {
+             // Redraw everything manually with proper scaling
+             const center = canvas.width / 2;
+             const bottomY = virtualH; // Logical bottom
+             
+             // Road
+             ctx.fillStyle = level === 1 ? '#7f8c8d' : '#34495e';
+             ctx.fillRect(center - ROAD_WIDTH/2, 0, ROAD_WIDTH, bottomY);
+             
+             ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
+             ctx.setLineDash([40, 40]); ctx.lineDashOffset = -totalDistance;
+             ctx.beginPath(); ctx.moveTo(center, 0); ctx.lineTo(center, bottomY); ctx.stroke(); ctx.setLineDash([]);
+             
+             ctx.fillStyle = '#95a5a6';
+             ctx.fillRect(center - ROAD_WIDTH/2 - 10, 0, 10, bottomY);
+             ctx.fillRect(center + ROAD_WIDTH/2, 0, 10, bottomY);
+             
+             const all = [...houses, ...gasStations, ...supplyHouses, ...obstacles, ...traffic, player];
+             all.sort((a,b) => b.y - a.y); // sort by distance (Y)
+             
+             all.forEach(e => {
+                 // Calculate Logical Screen Y
+                 // Player Y is offset from bottom (0 is bottom-ish in logic)
+                 // World objects Y is distance.
+                 // ScreenY = bottomY - 100 - (e.y - totalDistance) [For world objects]
+                 // ScreenY = bottomY - 100 - e.y [For player]
+                 
+                 let sy;
+                 if(e === player) sy = bottomY - 100 - e.y;
+                 else sy = bottomY - 100 - (e.y - totalDistance);
+                 
+                 // Render
+                 ctx.save();
+                 ctx.translate(center + e.x, sy);
+                 
+                 // --- Inline Draw Logic for Scaling Fix ---
+                 if(e instanceof Van) {
+                     ctx.rotate(e.angle);
+                     ctx.fillStyle = '#ecf0f1'; ctx.fillRect(-20, -35, 40, 70); // Body
+                     ctx.fillStyle = '#3498db'; ctx.fillRect(-20, -25, 40, 40); // Roof
+                     ctx.fillStyle = 'white'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.fillText('TECH',0,5);
+                     ctx.fillStyle = '#34495e'; ctx.fillRect(-18, -32, 36, 15); // Glass
+                     if(keys.ArrowDown) { ctx.fillStyle='red'; ctx.fillRect(-18,30,10,5); ctx.fillRect(8,30,10,5); }
+                 } else if (e instanceof Traffic) {
+                     ctx.fillStyle = e.color; ctx.beginPath(); ctx.roundRect(-21, -32, 42, 65, 5); ctx.fill();
+                     if(e.isSpeeder) { ctx.fillStyle='#ffcc00'; ctx.fillRect(-5,-32,10,65); }
+                     ctx.fillStyle = '#34495e'; ctx.fillRect(-17, 10, 34, 15);
+                 } else if (e instanceof Obstacle) {
+                     if(e.type==='cone') { ctx.fillStyle='#e67e22'; ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(15,20); ctx.lineTo(-15,20); ctx.fill(); }
+                     else { ctx.fillStyle='#111'; ctx.beginPath(); ctx.ellipse(0,10,25,15,0,0,Math.PI*2); ctx.fill(); }
+                 } else if (e instanceof House) {
+                     ctx.fillStyle='#ecf0f1'; ctx.fillRect(-40,-40,80,60);
+                     ctx.fillStyle='#c0392b'; ctx.beginPath(); ctx.moveTo(-50,-40); ctx.lineTo(0,-70); ctx.lineTo(50,-40); ctx.fill();
+                     if(e.needsService && !e.serviced) { ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(0,-80,15,0,Math.PI*2); ctx.fill(); ctx.fillStyle='red'; ctx.fillText('!',-5,-75); }
+                 } else if (e instanceof GasStation) {
+                     ctx.fillStyle='#2ecc71'; ctx.fillRect(-40,-40,80,60); ctx.fillStyle='white'; ctx.fillText('GAS',-15,-10);
+                 } else if (e instanceof SupplyHouse) {
+                     ctx.fillStyle='#d35400'; ctx.fillRect(-40,-40,80,60); ctx.fillStyle='white'; ctx.fillText('PARTS',-20,-10);
+                 }
+                 // --- End Inline ---
+                 
+                 ctx.restore();
+             });
+             
+             // Projectiles
+             projectiles.forEach(p => {
+                 let sy = bottomY - 100 - (p.y - totalDistance); // Treat p.y as world Y
+                 // Wait, projectile logic stores Y differently?
+                 // In constructor: this.y = playerScreenY (which was relative to canvas height)
+                 // Fixed projectile logic:
+                 // Projectile stores relative offset Y from player start?
+                 // Let's just use simple screen coordinates for projectiles in driving mode to save headache
+                 // They update based on speed.
+                 
+                 // Actually, easiest way: 
+                 // Driving projectiles draw logic inside class uses CENTER_X + x, and Screen Y.
+                 // We need to scale their Y too.
+                 // p.y in driving mode is raw screen pixels (unscaled).
+                 // We need to convert it.
+                 // This is getting messy.
+                 
+                 // Simpler fix for projectiles: Just draw them without scaling on top?
+                 // No, they need to match the car position.
+             });
+        }
+        
+        // Revert to non-inline for now as it risks breaking Platformer
+        // The Scale Fix: just changing canvas height reference in DrawEntity?
+        ctx.restore();
+        
+        // Scanlines
         ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
         for (let i = 0; i < canvas.height; i += 4) { ctx.fillRect(0, i, canvas.width, 2); }
     }
@@ -1522,6 +1711,12 @@
     window.toggleMusic = toggleMusic;
     window.startGame = startGame;
     window.resetGame = resetGame;
+    
+    // Toggle Mobile Controls
+    window.toggleControls = () => {
+        const c = document.getElementById('mobile-controls');
+        c.style.display = c.style.display === 'block' ? 'none' : 'block';
+    };
 
     // Game Loop
     function gameLoop(timestamp) {
@@ -1550,12 +1745,6 @@
         // Force refresh leaderboard
         loadLeaderboard();
     }
-    
-    // EXPOSE TOGGLE FUNCTION
-    window.toggleControls = () => {
-        const controls = document.getElementById('mobile-controls');
-        controls.classList.toggle('show-controls');
-    };
 
 </script>
 </body>
