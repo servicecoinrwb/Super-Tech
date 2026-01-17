@@ -8,11 +8,20 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
+        :root {
+            --bg-color: #222;
+            --text-color: #fff;
+            --primary-color: #3498db;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+        }
+
         body {
             margin: 0;
             padding: 0;
-            background-color: #222;
-            color: white;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             font-family: 'Press Start 2P', cursive;
             overflow: hidden;
             touch-action: none;
@@ -73,12 +82,14 @@
         #start-screen, #game-over-screen, #level-screen, #win-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.95);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            display: flex; flex-direction: column; justify-content: flex-start; align-items: center;
             text-align: center; pointer-events: auto; z-index: 30;
+            padding-top: 40px; overflow-y: auto;
         }
         
-        #level-screen { background: rgba(26, 11, 46, 0.95); pointer-events: none; }
-        #win-screen { background: rgba(46, 204, 113, 0.95); }
+        #level-screen { background: rgba(26, 11, 46, 0.95); pointer-events: none; justify-content: center; }
+        #win-screen { background: rgba(46, 204, 113, 0.95); justify-content: center; }
+        #game-over-screen { justify-content: center; }
 
         h1 { font-size: 32px; color: #FFD700; text-shadow: 4px 4px 0 #8B4500; margin-bottom: 20px; line-height: 1.5; }
         .ninja-title { color: #e74c3c !important; text-shadow: 4px 4px 0 #000 !important; font-style: italic; }
@@ -94,7 +105,7 @@
             background: #e74c3c; border: 4px solid #c0392b; color: white;
             font-family: 'Press Start 2P', cursive; font-size: 18px; padding: 15px 30px;
             cursor: pointer; text-transform: uppercase; box-shadow: 0 6px 0 #962d22;
-            transition: transform 0.1s, box-shadow 0.1s; margin-top: 20px;
+            transition: transform 0.1s, box-shadow 0.1s; margin-top: 10px; margin-bottom: 10px;
         }
         button.btn-retro:active { transform: translateY(6px); box-shadow: 0 0 0 #962d22; }
 
@@ -107,6 +118,31 @@
             text-transform: uppercase; font-size: 12px; pointer-events: auto;
         }
         .btn-pixel:hover { background: white; color: black; }
+        
+        .btn-google {
+            background: #fff; color: #333; border: none; font-family: sans-serif;
+            font-weight: bold; font-size: 13px; padding: 8px 16px; border-radius: 4px;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: 10px;
+        }
+        .btn-google:active { background: #eee; }
+
+        /* Leaderboard */
+        #leaderboard {
+            margin-top: 15px; background: rgba(0,0,0,0.6); border: 2px solid #3498db;
+            padding: 10px; width: 90%; max-width: 320px; max-height: 180px;
+            overflow-y: auto; font-size: 10px; text-align: left;
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+        }
+        .leaderboard-row { display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px dotted #555; padding-bottom: 3px; }
+        .rank-name { color: #f1c40f; } .rank-score { color: #2ecc71; }
+        
+        #input-container { margin: 15px 0; }
+        #username, #win-username {
+            background: #333; border: 2px solid #fff; color: #fff; padding: 10px;
+            font-family: 'Press Start 2P', cursive; font-size: 18px; text-transform: uppercase;
+            text-align: center; width: 150px;
+        }
+        #user-status { font-size: 10px; color: #aaa; margin-top: 5px; margin-bottom: 5px; }
 
         /* Mobile Controls - Upgraded Style */
         #mobile-controls {
@@ -139,6 +175,10 @@
         .hidden { display: none !important; }
         .blink { animation: blinker 1s linear infinite; }
         @keyframes blinker { 50% { opacity: 0; } }
+        
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #222; }
+        ::-webkit-scrollbar-thumb { background: #555; }
     </style>
 </head>
 <body>
@@ -170,11 +210,18 @@
         <img src="https://imageview.mechanicaltemp.com/objects/uploads/b06a602d-a276-47bc-808e-585ada089aa4" alt="Mechanical Temp" class="pixel-logo">
         <h1>SUPER TECH</h1>
         <p>Your shift starts now! Drive the service van.</p>
-        <p>Avoid <span style="color:#888">OIL</span>, <span style="color:#e67e22">CONES</span> and <span style="color:#c0392b">CARS</span>.</p>
-        <p>Fix Houses to earn Cash. Stop at <span style="color:#2ecc71">GAS STATIONS</span> to refuel ($100)!</p>
-        <p>Visit <span style="color:#d35400">SUPPLY HOUSES</span> for bonus parts!</p>
-        <p style="font-size: 10px; color: #777;">ARROWS to Move • SPACE to Service/Refuel</p>
-        <button class="btn-retro" onclick="startGame()">START ENGINE</button>
+        
+        <button class="btn-retro" onclick="window.startGame()">START ENGINE</button>
+        
+        <button id="btn-google-login" class="btn-google" onclick="window.loginGoogle()">
+            <span style="font-weight:900;">G</span> Sign in for Leaderboard
+        </button>
+        <div id="user-status">Not Signed In</div>
+        
+        <div id="leaderboard">
+            <div style="text-align:center; color:#3498db; margin-bottom:10px; border-bottom: 2px solid #3498db; padding-bottom:5px; font-size:10px;">TOP TECHNICIANS</div>
+            <div id="leaderboard-list">Loading...</div>
+        </div>
     </div>
 
     <!-- Level Up Screen -->
@@ -188,19 +235,26 @@
     <!-- Game Over Screen -->
     <div id="game-over-screen" class="hidden">
         <h1>GAME OVER</h1>
-        <p id="final-score">EARNINGS: $0</p>
-        <p id="final-time" style="font-size: 12px; margin-top: -10px; color: #f1c40f;">SHIFT DURATION: 00:00</p>
-        <p id="game-over-reason">CRASHED!</p>
-        <button class="btn-retro" onclick="resetGame()">NEXT SHIFT</button>
-        <button class="btn-retro btn-secondary" onclick="quitGame()">MAIN MENU</button>
+        <p id="end-reason" style="color: var(--danger-color);">CRASHED!</p>
+        <p id="end-score">EARNINGS: $0</p>
+        <p style="font-size:10px; color:#aaa; margin-top:-10px;">(HIGH SCORE: $<span id="local-high-score">0</span>)</p>
+        
+        <div id="input-container">
+            <input type="text" id="username" placeholder="AAA" maxlength="3">
+        </div>
+        <button class="btn-retro" onclick="window.submitScore()">SUBMIT SCORE</button>
+        <button class="btn-retro btn-secondary" onclick="window.resetGame()">SKIP & RESTART</button>
     </div>
 
     <!-- Win Screen -->
     <div id="win-screen" class="hidden">
         <h1 style="color: #fff;">MISSION COMPLETE</h1>
         <p>YOU REACHED THE MASTER CHILLER!</p>
-        <p id="win-score" style="font-size: 24px; color: #FFD700;">TOTAL CASH: $0</p>
-        <button class="btn-retro" onclick="quitGame()">RETURN TO HQ</button>
+        <p id="win-score" style="font-size: 24px; color: gold;">$0</p>
+        <div id="win-input-container" style="margin: 15px 0;">
+             <input type="text" id="win-username" placeholder="AAA" maxlength="3">
+        </div>
+        <button class="btn-retro" onclick="window.submitWinScore()">SUBMIT & RETURN</button>
     </div>
 
     <!-- Mobile Controls -->
@@ -212,7 +266,134 @@
     </div>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- FIREBASE SETUP ---
+    const userFirebaseConfig = {
+      apiKey: "AIzaSyAjvlIYsfGhyBf7k7Z-MSj2LH73eOE3P0E",
+      authDomain: "super-tech-484616.firebaseapp.com",
+      projectId: "super-tech-484616",
+      storageBucket: "super-tech-484616.firebasestorage.app",
+      messagingSenderId: "942029806104",
+      appId: "1:942029806104:web:71d24eb2fa675cf9c9c16d",
+      measurementId: "G-LK5824QF4D"
+    };
+
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let leaderboardData = [];
+    let currentUser = null;
+
+    async function initFirebase() {
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                let name = user.displayName || 'Anonymous';
+                if(name.length > 10) name = name.substring(0,10) + '...';
+                document.getElementById('user-status').innerText = `Tech: ${name}`;
+                if(user.displayName) {
+                    document.getElementById('btn-google-login').style.display = 'none';
+                }
+                loadLeaderboard();
+            } else {
+                signInAnonymously(auth).catch(e => {
+                    console.error("Anon Auth Failed:", e);
+                    const status = document.getElementById('user-status');
+                    if (e.code === 'auth/admin-restricted-operation') {
+                        status.innerText = "Leaderboard: Offline (Auth Config)";
+                        status.style.color = "#e74c3c";
+                        document.getElementById('leaderboard-list').innerHTML = "<div>Scores Offline</div>";
+                    } else {
+                        status.innerText = "Auth Failed";
+                    }
+                });
+            }
+        });
+    }
+
+    window.loginGoogle = async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+            await signInWithPopup(auth, provider);
+        } catch (error) {
+            console.error("Google Sign-In Error", error);
+            alert("Sign-in failed. Popup might be blocked.");
+        }
+    };
+
+    async function loadLeaderboard() {
+        const list = document.getElementById('leaderboard-list');
+        list.innerHTML = "Loading...";
+        
+        try {
+            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'));
+            const snapshot = await getDocs(q);
+            
+            let scores = [];
+            snapshot.forEach(doc => scores.push(doc.data()));
+            
+            scores.sort((a, b) => b.score - a.score);
+            leaderboardData = scores.slice(0, 10); 
+            
+            renderLeaderboard();
+        } catch (e) {
+            console.error("Fetch failed", e);
+            list.innerHTML = "<div style='padding:10px;'>Leaderboard Offline</div>";
+        }
+    }
+
+    function renderLeaderboard() {
+        const list = document.getElementById('leaderboard-list');
+        list.innerHTML = "";
+        
+        if (leaderboardData.length === 0) {
+            list.innerHTML = "<div style='padding:10px;'>No records yet.</div>";
+            return;
+        }
+        
+        leaderboardData.forEach((entry, index) => {
+            const row = document.createElement('div');
+            row.className = 'leaderboard-row';
+            row.innerHTML = `
+                <span class="rank-name">${index + 1}. ${entry.name}</span>
+                <span class="rank-score">$${entry.score}</span>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    async function saveScore(name, score) {
+        const localHigh = localStorage.getItem('hvac_high_score') || 0;
+        if (score > localHigh) localStorage.setItem('hvac_high_score', score);
+
+        if (!auth.currentUser) return;
+        
+        let finalName = name || (currentUser.displayName ? currentUser.displayName.substring(0,3).toUpperCase() : "UNK");
+        if(finalName.length > 3) finalName = finalName.substring(0, 3).toUpperCase();
+        
+        const entry = {
+            name: finalName,
+            score: parseInt(score),
+            date: new Date().toISOString(),
+            uid: currentUser.uid
+        };
+        
+        try {
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), entry);
+            await loadLeaderboard();
+        } catch (e) {
+            console.error("Save failed", e);
+        }
+    }
+
     /**
      * SUPER TECH
      * Level 1-2: Top Down Driving
@@ -899,7 +1080,7 @@
 
     function startGame() {
         initAudio(); startMusic();
-        document.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden')); // Reset hidden classes if confused? No, remove from visible
+        document.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden')); 
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('game-over-screen').classList.add('hidden');
         document.getElementById('level-screen').classList.add('hidden');
@@ -1306,6 +1487,20 @@
         if (!isGameOver) {
             requestAnimationFrame(gameLoop);
         }
+    }
+
+    // --- FIREBASE INTEGRATION (WIRED TO GLOBAL) ---
+    // Start Firebase when page loads
+    initFirebase();
+    
+    // Connect Submit Buttons
+    window.submitScore = () => { const name = document.getElementById('username').value; if(name) { saveScore(name, score); showMenu(); } };
+    window.submitWinScore = () => { const name = document.getElementById('win-username').value; if(name) { saveScore(name, score); showMenu(); } };
+    
+    function showMenu() {
+        quitGame();
+        // Force refresh leaderboard
+        loadLeaderboard();
     }
 
 </script>
