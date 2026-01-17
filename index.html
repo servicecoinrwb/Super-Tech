@@ -538,323 +538,6 @@ class DrivingScene {
         const side = Math.random() > 0.5 ? 1 : -1;
         const xPos = side * 280; // Distance from center
         
-        // Ensure no overlap with recent buildings on same side
-        const conflict = this.entities.some(e => (e.type==='house'||e.type==='gas'||e.type==='supply') && e.side === side && e.y < 200);
-        if(conflict) return;
-
-        if (typeRoll < 0.1) this.entities.push({ type: 'supply', x: xPos, y: startY, side: side, used: false });
-        else if (typeRoll < 0.25) this.entities.push({ type: 'gas', x: xPos, y: startY, side: side, used: false });
-        else this.entities.push({ type: 'house', x: xPos, y: startY, side: side, needsService: true, serviced: false });
-    }
-
-    checkCollisions() {
-        const pRect = { 
-            l: this.player.x - this.player.width/2 + 5, 
-            r: this.player.x + this.player.width/2 - 5, 
-            t: Game.canvas.height - 100 - this.player.y - this.player.height/2 + 5, 
-            b: Game.canvas.height - 100 - this.player.y + this.player.height/2 - 5 
-        };
-
-        this.entities.forEach(e => {
-            if (e.type === 'traffic' || e.type === 'obstacle') {
-                const eL = e.x - (e.width||40)/2;
-                const eR = e.x + (e.width||40)/2;
-                const eT = e.y - (e.height||40)/2;
-                const eB = e.y + (e.height||40)/2;
-
-                if (pRect.l < eR && pRect.r > eL && pRect.t < eB && pRect.b > eT) {
-                    if(e.type === 'obstacle' && e.kind === 'oil') {
-                        Audio.sfx('score'); // Slipping sound placeholder
-                        // Oil logic could go here (slide effect)
-                    } else {
-                        Audio.sfx('crash');
-                        Game.shake(0.5);
-                        this.speed = Math.max(200, this.speed * 0.5);
-                        e.y = 2000; // Remove logic
-                    }
-                }
-            }
-        });
-    }
-
-    draw(ctx) {
-        // Auto Scale for Narrow Screens (Fixes Missing Buildings)
-        const scale = Math.min(1, ctx.canvas.width / Config.TotalViewWidth);
-        
-        ctx.save();
-        ctx.translate(ctx.canvas.width/2, 0); // Center canvas
-        ctx.scale(scale, scale); // Scale entire scene
-        ctx.translate(-ctx.canvas.width/2, 0); // Undo center offset for logic but keep zoom center
-        
-        // Correct centering with scale applied
-        // Effectively we want to draw as if canvas is 700px wide, centered
-        const virtualCX = ctx.canvas.width / 2;
-
-        // Background
-        ctx.fillStyle = this.level === 2 ? Config.Colors.GrassNight : Config.Colors.GrassDay;
-        // Fill wider than canvas to cover scaling gaps
-        ctx.fillRect(-virtualCX*2, 0, virtualCX*4, ctx.canvas.height / scale); 
-        
-        // Level 2 Moon
-        if(this.level === 2) {
-            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(virtualCX + 300, 80, 40, 0, Math.PI*2); ctx.fill();
-        }
-        
-        // Road
-        ctx.fillStyle = this.level === 2 ? Config.Colors.RoadNight : Config.Colors.RoadDay;
-        ctx.fillRect(virtualCX - Config.RoadWidth/2, 0, Config.RoadWidth, ctx.canvas.height / scale);
-        
-        // Lines
-        ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
-        ctx.setLineDash([40, 40]); ctx.lineDashOffset = -this.distance;
-        ctx.beginPath(); ctx.moveTo(virtualCX, 0); ctx.lineTo(virtualCX, ctx.canvas.height / scale); ctx.stroke();
-        ctx.setLineDash([]);
-
-        this.entities.sort((a,b) => a.y - b.y).forEach(e => {
-            ctx.save();
-            if(e instanceof Projectile) ctx.translate(virtualCX + e.x, Game.canvas.height - 100 - (e.y - this.player.y)); 
-            else ctx.translate(virtualCX + e.x, e.y);
-            
-            if(e instanceof Projectile) {
-                 ctx.restore();
-                 // Re-apply scale for projectile
-                 ctx.save();
-                 ctx.translate(ctx.canvas.width/2, 0);
-                 ctx.scale(scale, scale);
-                 ctx.translate(-ctx.canvas.width/2, 0);
-                 e.draw(ctx, 0); 
-                 ctx.restore();
-                 return;
-            }
-
-            this.drawEntity(ctx, e);
-            ctx.restore();
-        });
-
-        // Player
-        ctx.save();
-        const drawY = Game.canvas.height - 100 - this.player.y;
-        ctx.translate(virtualCX + this.player.x, drawY);
-        ctx.fillStyle = '#ecf0f1'; ctx.fillRect(-20, -35, 40, 70);
-        ctx.fillStyle = '#3498db'; ctx.fillRect(-20, -25, 40, 40); 
-        ctx.fillStyle = 'white'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.fillText('TECH',0,5);
-        ctx.fillStyle = '#34495e'; ctx.fillRect(-18, -32, 36, 15); 
-        if(Input.keys.ArrowDown) {
-            ctx.fillStyle = 'red'; ctx.shadowColor = 'red'; ctx.shadowBlur = 10;
-            ctx.fillRect(-18, 30, 10, 5); ctx.fillRect(8, 30, 10, 5);
-            ctx.shadowBlur = 0;
-        }
-        ctx.restore();
-        
-        ctx.restore(); // End scale
-    }
-
-    drawEntity(ctx, e) {
-        if(e.type === 'house') {
-            ctx.fillStyle = this.level===2 ? '#4a235a' : '#ecf0f1';
-            ctx.fillRect(-40, -40, 80, 60);
-            ctx.fillStyle = this.level===2 ? '#2c3e50' : '#c0392b';
-            ctx.beginPath(); ctx.moveTo(-50, -40); ctx.lineTo(0, -70); ctx.lineTo(50, -40); ctx.fill();
-            if(e.needsService && !e.serviced) {
-                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(0, -80, 15, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'red'; ctx.fillText('!', -5, -75);
-            }
-        } else if (e.type === 'gas') {
-            ctx.fillStyle = '#2ecc71'; ctx.fillRect(-40, -40, 80, 60);
-            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText('GAS', -15, -10);
-        } else if (e.type === 'supply') {
-            ctx.fillStyle = '#d35400'; ctx.fillRect(-40, -40, 80, 60);
-            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText('PARTS', -20, -10);
-        } else if (e.type === 'traffic') {
-            ctx.fillStyle = e.speeder ? '#ff0033' : (this.level===2 ? '#555' : '#e74c3c');
-            ctx.fillRect(-20, -30, 40, 60);
-            ctx.fillStyle = e.speeder ? '#8bf' : '#f1c40f';
-            if(this.level===2) { 
-               ctx.fillStyle='#fff'; ctx.globalAlpha=0.3; 
-               ctx.beginPath(); ctx.moveTo(-15,30); ctx.lineTo(-30,100); ctx.lineTo(30,100); ctx.lineTo(15,30); ctx.fill(); ctx.globalAlpha=1; 
-            }
-            ctx.fillRect(-18, 25, 10, 5); ctx.fillRect(8, 25, 10, 5);
-        } else if (e.type === 'obstacle') {
-            if(e.kind === 'barrel') {
-                ctx.fillStyle = '#e67e22'; ctx.fillRect(-15,-20,30,40);
-                ctx.fillStyle = '#fff'; ctx.fillRect(-15,-10,30,10); ctx.fillRect(-15,10,30,10);
-            } else if (e.kind === 'trash') {
-                ctx.fillStyle = '#95a5a6'; ctx.fillRect(-12,-18,24,36);
-            } else if (e.kind === 'oil') {
-                ctx.fillStyle = '#111'; ctx.globalAlpha=0.8; ctx.beginPath(); ctx.ellipse(0,10,25,15,0,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
-            } else {
-                ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(15,20); ctx.lineTo(-15,20); ctx.fill();
-            }
-        }
-    }
-}
-
-class Projectile {
-    constructor(startX, startY, targetX, targetY) {
-        this.rawX = startX; 
-        this.rawY = startY;
-        this.targetX = targetX;
-        this.targetY = targetY;
-        this.t = 0;
-        this.active = true;
-        this.rot = 0;
-    }
-    update(dt) {
-        this.t += dt * 3;
-        this.rot += 15 * dt;
-        if(this.t >= 1) this.active = false;
-    }
-    draw(ctx) {
-        // Lerp position
-        const cx = ctx.canvas.width / 2;
-        const curX = this.rawX + (this.targetX - this.rawX) * this.t;
-        const curY = this.rawY + (this.targetY - this.rawY) * this.t;
-        
-        ctx.save();
-        ctx.translate(cx + curX, curY);
-        ctx.rotate(this.rot);
-        ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-10, -3, 20, 6);
-        ctx.beginPath(); ctx.arc(-10, 0, 6, 0, Math.PI * 2); ctx.arc(10, 0, 6, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-    }
-}
-
-// --- SCENE: PLATFORMER (Level 3) ---
-
-class PlatformerScene {
-    constructor() {
-        this.tech = { x: 100, y: 300, w: 30, h: 50, vx: 0, vy: 0, grounded: false, facingRight: true };
-        this.camX = 0;
-        this.platforms = [];
-        this.enemies = [];
-        this.projectiles = [];
-        this.initLevel();
-        
-        // UI Setup
-        document.getElementById('fuel-container').style.display = 'none';
-        document.getElementById('dpad-up').style.display = 'flex';
-        document.getElementById('dpad-down').style.display = 'none';
-    }
-
-    initLevel() {
-        let x = 0;
-        for(let i=0; i<20; i++) {
-            let w = 300 + Math.random()*200;
-            let gap = 50 + Math.random()*150;
-            this.platforms.push({ x, y: 400 + Math.random()*100, w, h: 400 });
-            if(i>2) this.enemies.push({ x: x+w/2, y: 350, w: 30, h: 30, type: 'bat', active: true, t: Math.random() });
-            x += w + gap;
-        }
-        this.platforms.push({ x, y: 400, w: 600, h: 400 });
-        this.enemies.push({ x: x+300, y: 250, w: 100, h: 150, type: 'boss', active: true, hp: 5 });
-    }
-
-    onAction() {
-        Audio.sfx('throw');
-        this.projectiles.push({
-            x: this.tech.x, y: this.tech.y + 20, vx: this.tech.facingRight ? 600 : -600, active: true
-        });
-    }
-
-    update(dt) {
-        // Movement
-        if (Input.keys.ArrowRight) { this.tech.vx = 300; this.tech.facingRight = true; }
-        else if (Input.keys.ArrowLeft) { this.tech.vx = -300; this.tech.facingRight = false; }
-        else { this.tech.vx = 0; }
-
-        if (Input.keys.ArrowUp && this.tech.grounded) {
-            this.tech.vy = -600; this.tech.grounded = false; Audio.sfx('jump');
-        }
-
-        this.tech.vy += 1500 * dt;
-        this.tech.x += this.tech.vx * dt;
-        this.tech.y += this.tech.vy * dt;
-
-        this.tech.grounded = false;
-        if(this.tech.y > Game.canvas.height + 100) Game.gameOver("FELL OFF THE ROOF!");
-
-        this.platforms.forEach(p => {
-            if(this.tech.x+this.tech.w > p.x && this.tech.x < p.x+p.w &&
-               this.tech.y+this.tech.h > p.y && this.tech.y+this.tech.h < p.y+p.h+30 && this.tech.vy >= 0) {
-                this.tech.y = p.y - this.tech.h;
-                this.tech.vy = 0;
-                this.tech.grounded = true;
-            }
-        });
-
-        this.camX = Math.max(0, this.tech.x - 200);
-
-        // Projectiles
-        this.projectiles.forEach(p => {
-            p.x += p.vx * dt;
-            this.enemies.forEach(e => {
-                if(e.active && p.active && p.x > e.x && p.x < e.x+e.w && p.y > e.y && p.y < e.y+e.h) {
-                    p.active = false;
-                    Audio.sfx('crash');
-                    if(e.type === 'boss') {
-                        e.hp--;
-                        if(e.hp<=0) { e.active = false; Game.win(); }
-                    } else {
-                        e.active = false;
-                        Game.addScore(100);
-                    }
-                }
-            });
-        });
-        
-        this.enemies.forEach(e => {
-            if(!e.active) return;
-            if(e.type === 'bat') { e.x -= 100 * dt; e.y += Math.sin(Date.now()/200)*2; }
-            if(this.tech.x < e.x+e.w && this.tech.x+this.tech.w > e.x &&
-               this.tech.y < e.y+e.h && this.tech.y+this.tech.h > e.y) {
-                Game.gameOver("HIT BY ENEMY!");
-            }
-        });
-    }
-
-    draw(ctx) {
-        const grad = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
-        grad.addColorStop(0, '#0f0c29'); grad.addColorStop(1, '#302b63');
-        ctx.fillStyle = grad; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-        ctx.save();
-        ctx.translate(-this.camX, 0);
-
-        ctx.fillStyle = '#555';
-        this.platforms.forEach(p => {
-            ctx.fillRect(p.x, p.y, p.w, p.h);
-            ctx.fillStyle = '#444'; ctx.fillRect(p.x, p.y, p.w, 10); ctx.fillStyle = '#555';
-        });
-
-        this.enemies.forEach(e => {
-            if(!e.active) return;
-            if(e.type === 'bat') {
-                ctx.fillStyle = '#3498db';
-                ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x+e.w/2, e.y+e.h); ctx.lineTo(e.x+e.w, e.y); ctx.fill();
-            } else if (e.type === 'boss') {
-                ctx.fillStyle = '#2c3e50'; ctx.fillRect(e.x, e.y, e.w, e.h);
-                ctx.fillStyle = '#e74c3c'; ctx.fillRect(e.x+10, e.y+10, e.w-20, 20);
-            }
-        });
-
-        ctx.fillStyle = '#ecf0f1'; ctx.fillRect(this.tech.x, this.tech.y, this.tech.w, this.tech.h);
-        ctx.fillStyle = '#3498db'; ctx.fillRect(this.tech.x, this.tech.y, this.tech.w, 10);
-
-        ctx.fillStyle = '#bdc3c7';
-        this.projectiles.forEach(p => { if(p.active) ctx.fillRect(p.x, p.y, 20, 5); });
-
-        ctx.restore();
-    }
-}
-
-// --- GAME ENGINE ---
-
-spawnEnvironment() {
-        const startY = -250;
-        const typeRoll = Math.random();
-        const side = Math.random() > 0.5 ? 1 : -1;
-        const xPos = side * 280; // Distance from center
-        
         // Relaxed conflict check: Only prevent spawn if another building is very close to the startY
         // Previously "e.y < 200" blocked spawns while a building was anywhere in the top half of screen
         const conflict = this.entities.some(e => 
@@ -1058,6 +741,295 @@ class Projectile {
         ctx.restore();
     }
 }
+
+// --- SCENE: PLATFORMER (Level 3) ---
+
+class PlatformerScene {
+    constructor() {
+        this.tech = { x: 100, y: 300, w: 30, h: 50, vx: 0, vy: 0, grounded: false, facingRight: true };
+        this.camX = 0;
+        this.platforms = [];
+        this.enemies = [];
+        this.projectiles = [];
+        this.initLevel();
+        
+        // UI Setup
+        document.getElementById('fuel-container').style.display = 'none';
+        document.getElementById('dpad-up').style.display = 'flex';
+        document.getElementById('dpad-down').style.display = 'none';
+    }
+
+    initLevel() {
+        let x = 0;
+        for(let i=0; i<20; i++) {
+            let w = 300 + Math.random()*200;
+            let gap = 50 + Math.random()*150;
+            this.platforms.push({ x, y: 400 + Math.random()*100, w, h: 400 });
+            if(i>2) this.enemies.push({ x: x+w/2, y: 350, w: 30, h: 30, type: 'bat', active: true, t: Math.random() });
+            x += w + gap;
+        }
+        this.platforms.push({ x, y: 400, w: 600, h: 400 });
+        this.enemies.push({ x: x+300, y: 250, w: 100, h: 150, type: 'boss', active: true, hp: 5 });
+    }
+
+    onAction() {
+        Audio.sfx('throw');
+        this.projectiles.push({
+            x: this.tech.x, y: this.tech.y + 20, vx: this.tech.facingRight ? 600 : -600, active: true
+        });
+    }
+
+    update(dt) {
+        // Movement
+        if (Input.keys.ArrowRight) { this.tech.vx = 300; this.tech.facingRight = true; }
+        else if (Input.keys.ArrowLeft) { this.tech.vx = -300; this.tech.facingRight = false; }
+        else { this.tech.vx = 0; }
+
+        if (Input.keys.ArrowUp && this.tech.grounded) {
+            this.tech.vy = -600; this.tech.grounded = false; Audio.sfx('jump');
+        }
+
+        this.tech.vy += 1500 * dt;
+        this.tech.x += this.tech.vx * dt;
+        this.tech.y += this.tech.vy * dt;
+
+        this.tech.grounded = false;
+        if(this.tech.y > Game.canvas.height + 100) Game.gameOver("FELL OFF THE ROOF!");
+
+        this.platforms.forEach(p => {
+            if(this.tech.x+this.tech.w > p.x && this.tech.x < p.x+p.w &&
+               this.tech.y+this.tech.h > p.y && this.tech.y+this.tech.h < p.y+p.h+30 && this.tech.vy >= 0) {
+                this.tech.y = p.y - this.tech.h;
+                this.tech.vy = 0;
+                this.tech.grounded = true;
+            }
+        });
+
+        this.camX = Math.max(0, this.tech.x - 200);
+
+        // Projectiles
+        this.projectiles.forEach(p => {
+            p.x += p.vx * dt;
+            this.enemies.forEach(e => {
+                if(e.active && p.active && p.x > e.x && p.x < e.x+e.w && p.y > e.y && p.y < e.y+e.h) {
+                    p.active = false;
+                    Audio.sfx('crash');
+                    if(e.type === 'boss') {
+                        e.hp--;
+                        if(e.hp<=0) { e.active = false; Game.win(); }
+                    } else {
+                        e.active = false;
+                        Game.addScore(100);
+                    }
+                }
+            });
+        });
+        
+        this.enemies.forEach(e => {
+            if(!e.active) return;
+            if(e.type === 'bat') { e.x -= 100 * dt; e.y += Math.sin(Date.now()/200)*2; }
+            if(this.tech.x < e.x+e.w && this.tech.x+this.tech.w > e.x &&
+               this.tech.y < e.y+e.h && this.tech.y+this.tech.h > e.y) {
+                Game.gameOver("HIT BY ENEMY!");
+            }
+        });
+    }
+
+    draw(ctx) {
+        const grad = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+        grad.addColorStop(0, '#0f0c29'); grad.addColorStop(1, '#302b63');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+        ctx.save();
+        ctx.translate(-this.camX, 0);
+
+        ctx.fillStyle = '#555';
+        this.platforms.forEach(p => {
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.fillStyle = '#444'; ctx.fillRect(p.x, p.y, p.w, 10); ctx.fillStyle = '#555';
+        });
+
+        this.enemies.forEach(e => {
+            if(!e.active) return;
+            if(e.type === 'bat') {
+                ctx.fillStyle = '#3498db';
+                ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x+e.w/2, e.y+e.h); ctx.lineTo(e.x+e.w, e.y); ctx.fill();
+            } else if (e.type === 'boss') {
+                ctx.fillStyle = '#2c3e50'; ctx.fillRect(e.x, e.y, e.w, e.h);
+                ctx.fillStyle = '#e74c3c'; ctx.fillRect(e.x+10, e.y+10, e.w-20, 20);
+            }
+        });
+
+        ctx.fillStyle = '#ecf0f1'; ctx.fillRect(this.tech.x, this.tech.y, this.tech.w, this.tech.h);
+        ctx.fillStyle = '#3498db'; ctx.fillRect(this.tech.x, this.tech.y, this.tech.w, 10);
+
+        ctx.fillStyle = '#bdc3c7';
+        this.projectiles.forEach(p => { if(p.active) ctx.fillRect(p.x, p.y, 20, 5); });
+
+        ctx.restore();
+    }
+}
+
+// --- GAME ENGINE ---
+
+const Game = {
+    canvas: null,
+    ctx: null,
+    lastTime: 0,
+    scene: null,
+    score: 0,
+    fuel: 100,
+    shiftTime: 0,
+    level: 1,
+    shake: 0,
+
+    init() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        Input.init();
+        
+        document.getElementById('btn-music').onclick = () => Audio.toggleMute();
+        document.getElementById('btn-menu').onclick = () => this.showMenu();
+        
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        this.showMenu();
+        this.loop(0);
+    },
+
+    resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+    },
+
+    start() {
+        this.score = 0;
+        this.fuel = 100;
+        this.shiftTime = 0;
+        this.level = 1;
+        this.loadLevel(1);
+        Audio.startMusic(107);
+        this.hideScreens();
+    },
+
+    loadLevel(lvl) {
+        this.level = lvl;
+        
+        const screen = document.getElementById('screen-level');
+        const title = document.getElementById('level-title');
+        const sub = document.getElementById('level-subtitle');
+        
+        if(lvl === 1) {
+            this.scene = new DrivingScene(1);
+        } else if (lvl === 2) {
+            title.innerText = "LEVEL 2"; sub.innerText = "ON CALL";
+            screen.classList.remove('hidden');
+            Audio.sfx('levelup');
+            setTimeout(() => screen.classList.add('hidden'), 3000);
+            this.scene = new DrivingScene(2);
+            Audio.startMusic(90);
+        } else if (lvl === 3) {
+            title.innerText = "LEVEL 3"; sub.innerText = "ROOFTOP RUMBLE";
+            screen.classList.remove('hidden');
+            Audio.sfx('levelup');
+            setTimeout(() => screen.classList.add('hidden'), 3000);
+            this.scene = new PlatformerScene();
+            Audio.startMusic(80);
+        }
+    },
+
+    update(dt) {
+        if(!this.scene) return;
+        
+        this.shiftTime += dt;
+        if(this.shake > 0) this.shake -= dt;
+
+        this.scene.update(dt);
+
+        if(this.level === 1 && this.score >= 1000) this.loadLevel(2);
+        if(this.level === 2 && this.score >= 2000) this.loadLevel(3);
+
+        this.updateHUD();
+    },
+
+    draw() {
+        if(!this.scene) return;
+        
+        this.ctx.save();
+        if(this.shake > 0) {
+            const dx = (Math.random()-0.5)*10*this.shake;
+            const dy = (Math.random()-0.5)*10*this.shake;
+            this.ctx.translate(dx, dy);
+        }
+        
+        this.scene.draw(this.ctx);
+        this.ctx.restore();
+
+        this.ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+        for (let i = 0; i < this.canvas.height; i += 4) {
+            this.ctx.fillRect(0, i, this.canvas.width, 2);
+        }
+    },
+
+    loop(timestamp) {
+        if(!this.lastTime) this.lastTime = timestamp;
+        const dt = (timestamp - this.lastTime) / 1000;
+        this.lastTime = timestamp;
+
+        this.update(dt);
+        this.draw();
+
+        requestAnimationFrame((t) => this.loop(t));
+    },
+
+    addScore(amount) { this.score += amount; },
+    consumeFuel(amount) {
+        this.fuel -= amount;
+        if(this.fuel <= 0) this.gameOver("OUT OF GAS!");
+    },
+    refuel() { this.fuel = 100; },
+    shake(amount) { this.shake = amount; },
+
+    updateHUD() {
+        document.getElementById('hud-score').innerText = `CASH: $${this.score}`;
+        const m = Math.floor(this.shiftTime / 60);
+        const s = Math.floor(this.shiftTime % 60);
+        document.getElementById('hud-time').innerText = `SHIFT: ${m}:${s<10?'0':''}${s}`;
+        
+        const fill = document.getElementById('fuel-fill');
+        fill.style.width = `${Math.max(0, this.fuel)}%`;
+        if(this.fuel < 20) fill.classList.add('low');
+        else fill.classList.remove('low');
+    },
+
+    gameOver(reason) {
+        this.scene = null;
+        Audio.stopMusic();
+        Audio.sfx('crash');
+        document.getElementById('end-reason').innerText = reason;
+        document.getElementById('end-score').innerText = `EARNINGS: $${this.score}`;
+        document.getElementById('screen-gameover').classList.remove('hidden');
+    },
+    
+    win() {
+        this.scene = null;
+        Audio.stopMusic();
+        document.getElementById('win-score').innerText = `$${this.score}`;
+        document.getElementById('screen-win').classList.remove('hidden');
+    },
+
+    showMenu() {
+        this.scene = null;
+        Audio.stopMusic();
+        this.hideScreens();
+        document.getElementById('screen-start').classList.remove('hidden');
+    },
+
+    hideScreens() {
+        document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
+    }
+};
 
 window.onload = () => Game.init();
 
