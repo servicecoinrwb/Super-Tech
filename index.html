@@ -849,164 +849,215 @@ class PlatformerScene {
 
 // --- GAME ENGINE ---
 
-const Game = {
-    canvas: null,
-    ctx: null,
-    lastTime: 0,
-    scene: null,
-    score: 0,
-    fuel: 100,
-    shiftTime: 0,
-    level: 1,
-    shake: 0,
-
-    init() {
-        this.canvas = document.getElementById('gameCanvas');
-        this.ctx = this.canvas.getContext('2d');
-        Input.init();
+spawnEnvironment() {
+        const startY = -250;
+        const typeRoll = Math.random();
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const xPos = side * 280; // Distance from center
         
-        document.getElementById('btn-music').onclick = () => Audio.toggleMute();
-        document.getElementById('btn-menu').onclick = () => this.showMenu();
+        // Relaxed conflict check: Only prevent spawn if another building is very close to the startY
+        // Previously "e.y < 200" blocked spawns while a building was anywhere in the top half of screen
+        const conflict = this.entities.some(e => 
+            (e.type==='house'||e.type==='gas'||e.type==='supply') && 
+            e.side === side && 
+            Math.abs(e.y - startY) < 350 // Ensure 350px gap between buildings
+        );
         
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
-        
-        this.showMenu();
-        this.loop(0);
-    },
+        if(conflict) return;
 
-    resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-    },
-
-    start() {
-        this.score = 0;
-        this.fuel = 100;
-        this.shiftTime = 0;
-        this.level = 1;
-        this.loadLevel(1);
-        Audio.startMusic(107);
-        this.hideScreens();
-    },
-
-    loadLevel(lvl) {
-        this.level = lvl;
-        
-        const screen = document.getElementById('screen-level');
-        const title = document.getElementById('level-title');
-        const sub = document.getElementById('level-subtitle');
-        
-        if(lvl === 1) {
-            this.scene = new DrivingScene(1);
-        } else if (lvl === 2) {
-            title.innerText = "LEVEL 2"; sub.innerText = "ON CALL";
-            screen.classList.remove('hidden');
-            Audio.sfx('levelup');
-            setTimeout(() => screen.classList.add('hidden'), 3000);
-            this.scene = new DrivingScene(2);
-            Audio.startMusic(90);
-        } else if (lvl === 3) {
-            title.innerText = "LEVEL 3"; sub.innerText = "ROOFTOP RUMBLE";
-            screen.classList.remove('hidden');
-            Audio.sfx('levelup');
-            setTimeout(() => screen.classList.add('hidden'), 3000);
-            this.scene = new PlatformerScene();
-            Audio.startMusic(80);
-        }
-    },
-
-    update(dt) {
-        if(!this.scene) return;
-        
-        this.shiftTime += dt;
-        if(this.shake > 0) this.shake -= dt;
-
-        this.scene.update(dt);
-
-        if(this.level === 1 && this.score >= 1000) this.loadLevel(2);
-        if(this.level === 2 && this.score >= 2000) this.loadLevel(3);
-
-        this.updateHUD();
-    },
-
-    draw() {
-        if(!this.scene) return;
-        
-        this.ctx.save();
-        if(this.shake > 0) {
-            const dx = (Math.random()-0.5)*10*this.shake;
-            const dy = (Math.random()-0.5)*10*this.shake;
-            this.ctx.translate(dx, dy);
-        }
-        
-        this.scene.draw(this.ctx);
-        this.ctx.restore();
-
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
-        for (let i = 0; i < this.canvas.height; i += 4) {
-            this.ctx.fillRect(0, i, this.canvas.width, 2);
-        }
-    },
-
-    loop(timestamp) {
-        if(!this.lastTime) this.lastTime = timestamp;
-        const dt = (timestamp - this.lastTime) / 1000;
-        this.lastTime = timestamp;
-
-        this.update(dt);
-        this.draw();
-
-        requestAnimationFrame((t) => this.loop(t));
-    },
-
-    addScore(amount) { this.score += amount; },
-    consumeFuel(amount) {
-        this.fuel -= amount;
-        if(this.fuel <= 0) this.gameOver("OUT OF GAS!");
-    },
-    refuel() { this.fuel = 100; },
-    shake(amount) { this.shake = amount; },
-
-    updateHUD() {
-        document.getElementById('hud-score').innerText = `CASH: $${this.score}`;
-        const m = Math.floor(this.shiftTime / 60);
-        const s = Math.floor(this.shiftTime % 60);
-        document.getElementById('hud-time').innerText = `SHIFT: ${m}:${s<10?'0':''}${s}`;
-        
-        const fill = document.getElementById('fuel-fill');
-        fill.style.width = `${Math.max(0, this.fuel)}%`;
-        if(this.fuel < 20) fill.classList.add('low');
-        else fill.classList.remove('low');
-    },
-
-    gameOver(reason) {
-        this.scene = null;
-        Audio.stopMusic();
-        Audio.sfx('crash');
-        document.getElementById('end-reason').innerText = reason;
-        document.getElementById('end-score').innerText = `EARNINGS: $${this.score}`;
-        document.getElementById('screen-gameover').classList.remove('hidden');
-    },
-    
-    win() {
-        this.scene = null;
-        Audio.stopMusic();
-        document.getElementById('win-score').innerText = `$${this.score}`;
-        document.getElementById('screen-win').classList.remove('hidden');
-    },
-
-    showMenu() {
-        this.scene = null;
-        Audio.stopMusic();
-        this.hideScreens();
-        document.getElementById('screen-start').classList.remove('hidden');
-    },
-
-    hideScreens() {
-        document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
+        if (typeRoll < 0.1) this.entities.push({ type: 'supply', x: xPos, y: startY, side: side, used: false });
+        else if (typeRoll < 0.25) this.entities.push({ type: 'gas', x: xPos, y: startY, side: side, used: false });
+        else this.entities.push({ type: 'house', x: xPos, y: startY, side: side, needsService: true, serviced: false });
     }
-};
+
+    checkCollisions() {
+        const pRect = { 
+            l: this.player.x - this.player.width/2 + 5, 
+            r: this.player.x + this.player.width/2 - 5, 
+            t: Game.canvas.height - 100 - this.player.y - this.player.height/2 + 5, 
+            b: Game.canvas.height - 100 - this.player.y + this.player.height/2 - 5 
+        };
+
+        this.entities.forEach(e => {
+            if (e.type === 'traffic' || e.type === 'obstacle') {
+                const eL = e.x - (e.width||40)/2;
+                const eR = e.x + (e.width||40)/2;
+                const eT = e.y - (e.height||40)/2;
+                const eB = e.y + (e.height||40)/2;
+
+                if (pRect.l < eR && pRect.r > eL && pRect.t < eB && pRect.b > eT) {
+                    if(e.type === 'obstacle' && e.kind === 'oil') {
+                        Audio.sfx('score'); // Slipping sound placeholder
+                        // Oil logic could go here (slide effect)
+                    } else {
+                        Audio.sfx('crash');
+                        Game.shake(0.5);
+                        this.speed = Math.max(200, this.speed * 0.5);
+                        e.y = 2000; // Remove logic
+                    }
+                }
+            }
+        });
+    }
+
+    draw(ctx) {
+        // 1. Draw Background (Full Screen, Unscaled)
+        ctx.fillStyle = this.level === 2 ? Config.Colors.GrassNight : Config.Colors.GrassDay;
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
+        // 2. Setup Scaled View Centered on Screen
+        // This ensures the game world (700px wide) fits on screen
+        const scale = Math.min(1, ctx.canvas.width / Config.TotalViewWidth);
+        const cx = ctx.canvas.width / 2;
+        
+        ctx.save();
+        ctx.translate(cx, 0); 
+        ctx.scale(scale, scale);
+        
+        // -- World Drawing Logic (0,0 is now Top-Center of screen) --
+        
+        // Level 2 Moon (Drawn relative to center)
+        if(this.level === 2) {
+            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(300, 80, 40, 0, Math.PI*2); ctx.fill();
+        }
+        
+        // Road
+        const roadH = ctx.canvas.height / scale; // Height in logical pixels
+        ctx.fillStyle = this.level === 2 ? Config.Colors.RoadNight : Config.Colors.RoadDay;
+        ctx.fillRect(-Config.RoadWidth/2, 0, Config.RoadWidth, roadH);
+        
+        // Lines
+        ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
+        ctx.setLineDash([40, 40]); ctx.lineDashOffset = -this.distance;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, roadH); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Entities (Sorted by Y)
+        this.entities.sort((a,b) => a.y - b.y).forEach(e => {
+            ctx.save();
+            
+            // Projectiles handle their own Y relative to player start, logic is tricky
+            // Let's simplified: 
+            if(e instanceof Projectile) {
+                 // Calculate projectile screen position
+                 // e.x is absolute relative to center (set in constructor)
+                 // e.y is absolute screen Y (set in constructor)
+                 // We need to map this to our current transform
+                 // Current transform is centered. 
+                 // e.y is correct. e.x is correct.
+                 ctx.translate(e.x, e.y);
+                 e.draw(ctx, 0); // No extra offset needed
+            } else {
+                 ctx.translate(e.x, e.y);
+                 this.drawEntity(ctx, e);
+            }
+            
+            ctx.restore();
+        });
+
+        // Player
+        ctx.save();
+        const drawY = Game.canvas.height - 100 - this.player.y;
+        // Transform Y to logical space if needed? 
+        // Actually, canvas.height is physical. We need logical Y.
+        // drawY is physical pixels from top.
+        // Inside scale, we need Y / scale.
+        // BUT, player Y logic is based on physical screen height in update().
+        // To simplify, let's keep player Y logic based on 0-height of Logical space.
+        
+        // Actually, simpler fix: Use the calculated roadH for bottom reference
+        const logicalH = ctx.canvas.height / scale;
+        const playerDrawY = logicalH - 100 - this.player.y; // 100px from bottom of logical screen
+        
+        ctx.translate(this.player.x, playerDrawY);
+        
+        ctx.fillStyle = '#ecf0f1'; ctx.fillRect(-20, -35, 40, 70);
+        ctx.fillStyle = '#3498db'; ctx.fillRect(-20, -25, 40, 40); 
+        ctx.fillStyle = 'white'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.fillText('TECH',0,5);
+        ctx.fillStyle = '#34495e'; ctx.fillRect(-18, -32, 36, 15); 
+        if(Input.keys.ArrowDown) {
+            ctx.fillStyle = 'red'; ctx.shadowColor = 'red'; ctx.shadowBlur = 10;
+            ctx.fillRect(-18, 30, 10, 5); ctx.fillRect(8, 30, 10, 5);
+            ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+        
+        ctx.restore(); // End scale
+    }
+
+    drawEntity(ctx, e) {
+        if(e.type === 'house') {
+            ctx.fillStyle = this.level===2 ? '#4a235a' : '#ecf0f1';
+            ctx.fillRect(-40, -40, 80, 60);
+            ctx.fillStyle = this.level===2 ? '#2c3e50' : '#c0392b';
+            ctx.beginPath(); ctx.moveTo(-50, -40); ctx.lineTo(0, -70); ctx.lineTo(50, -40); ctx.fill();
+            if(e.needsService && !e.serviced) {
+                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(0, -80, 15, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'red'; ctx.fillText('!', -5, -75);
+            }
+        } else if (e.type === 'gas') {
+            ctx.fillStyle = '#2ecc71'; ctx.fillRect(-40, -40, 80, 60);
+            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText('GAS', -15, -10);
+        } else if (e.type === 'supply') {
+            ctx.fillStyle = '#d35400'; ctx.fillRect(-40, -40, 80, 60);
+            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText('PARTS', -20, -10);
+        } else if (e.type === 'traffic') {
+            ctx.fillStyle = e.speeder ? '#ff0033' : (this.level===2 ? '#555' : '#e74c3c');
+            ctx.fillRect(-20, -30, 40, 60);
+            ctx.fillStyle = e.speeder ? '#8bf' : '#f1c40f';
+            if(this.level===2) { 
+               ctx.fillStyle='#fff'; ctx.globalAlpha=0.3; 
+               ctx.beginPath(); ctx.moveTo(-15,30); ctx.lineTo(-30,100); ctx.lineTo(30,100); ctx.lineTo(15,30); ctx.fill(); ctx.globalAlpha=1; 
+            }
+            ctx.fillRect(-18, 25, 10, 5); ctx.fillRect(8, 25, 10, 5);
+        } else if (e.type === 'obstacle') {
+            if(e.kind === 'barrel') {
+                ctx.fillStyle = '#e67e22'; ctx.fillRect(-15,-20,30,40);
+                ctx.fillStyle = '#fff'; ctx.fillRect(-15,-10,30,10); ctx.fillRect(-15,10,30,10);
+            } else if (e.kind === 'trash') {
+                ctx.fillStyle = '#95a5a6'; ctx.fillRect(-12,-18,24,36);
+            } else if (e.kind === 'oil') {
+                ctx.fillStyle = '#111'; ctx.globalAlpha=0.8; ctx.beginPath(); ctx.ellipse(0,10,25,15,0,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
+            } else {
+                ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(15,20); ctx.lineTo(-15,20); ctx.fill();
+            }
+        }
+    }
+}
+
+class Projectile {
+    constructor(startX, startY, targetX, targetY) {
+        this.rawX = startX; 
+        this.rawY = startY; // Screen Y at time of throw
+        this.targetX = targetX;
+        this.targetY = targetY; // Screen Y target
+        this.t = 0;
+        this.active = true;
+        this.rot = 0;
+        
+        // In the new relative system, rawY and targetY are absolute Logic coordinates (not screen pixels)
+        // because we call new Projectile(this.player.x, playerDrawY, e.x, e.y)
+        // playerDrawY is logical Y. e.y is logical Y.
+        // So drawing is easy.
+    }
+    update(dt) {
+        this.t += dt * 3;
+        this.rot += 15 * dt;
+        if(this.t >= 1) this.active = false;
+    }
+    draw(ctx) {
+        // Lerp position
+        const curX = this.rawX + (this.targetX - this.rawX) * this.t;
+        const curY = this.rawY + (this.targetY - this.rawY) * this.t;
+        
+        ctx.save();
+        ctx.translate(curX, curY);
+        ctx.rotate(this.rot);
+        ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-10, -3, 20, 6);
+        ctx.beginPath(); ctx.arc(-10, 0, 6, 0, Math.PI * 2); ctx.arc(10, 0, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+}
 
 window.onload = () => Game.init();
 
