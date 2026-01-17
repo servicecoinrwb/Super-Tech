@@ -235,6 +235,7 @@
 // --- CONFIGURATION ---
 const Config = {
     RoadWidth: 400,
+    TotalViewWidth: 700, // Includes side scenery
     BaseSpeed: 300,
     MaxSpeedLvl1: 800,
     MaxSpeedLvl2: 1000,
@@ -417,7 +418,8 @@ class DrivingScene {
         this.entities = [];
         this.speed = Config.BaseSpeed;
         this.distance = 0; // Needed for animating road lines
-        this.spawnTimer = 0;
+        this.hazardTimer = 0;
+        this.envTimer = 0;
         
         // Setup UI for Driving
         document.getElementById('fuel-container').style.display = 'block';
@@ -478,12 +480,19 @@ class DrivingScene {
         if(this.player.x < -roadEdge) this.player.x = -roadEdge;
         if(this.player.x > roadEdge) this.player.x = roadEdge;
 
-        // Spawning
-        this.spawnTimer -= dt;
-        if(this.spawnTimer <= 0) {
-            this.spawnEntity();
+        // Independent Spawning Logic
+        this.hazardTimer -= dt;
+        if(this.hazardTimer <= 0) {
+            this.spawnHazard();
             // Faster spawns in level 2
-            this.spawnTimer = (Math.random() * 0.5 + 0.2) * (this.level===2 ? 0.7 : 1.0); 
+            this.hazardTimer = (Math.random() * 0.5 + 0.3) * (this.level===2 ? 0.7 : 1.0); 
+        }
+        
+        this.envTimer -= dt;
+        if(this.envTimer <= 0) {
+            this.spawnEnvironment();
+            // Regular cadence for buildings
+            this.envTimer = 0.5 + Math.random() * 0.5; 
         }
 
         // Entities Update (Move Down)
@@ -505,14 +514,11 @@ class DrivingScene {
         this.checkCollisions();
     }
 
-    spawnEntity() {
-        const typeRoll = Math.random();
+    spawnHazard() {
         const startY = -200;
+        const typeRoll = Math.random();
         
-        if (typeRoll < 0.05) this.entities.push({ type: 'supply', x: (Math.random()>.5?1:-1)*280, y: startY, side: Math.random()>.5?1:-1, used: false });
-        else if (typeRoll < 0.1) this.entities.push({ type: 'gas', x: (Math.random()>.5?1:-1)*280, y: startY, side: Math.random()>.5?1:-1, used: false });
-        else if (typeRoll < 0.3) this.entities.push({ type: 'house', x: (Math.random()>.5?1:-1)*280, y: startY, side: Math.random()>.5?1:-1, needsService: true, serviced: false });
-        else if (typeRoll < 0.6) {
+        if (typeRoll < 0.6) { // Traffic
             const lane = (Math.floor(Math.random()*3)-1);
             const isSpeeder = Math.random() < 0.2;
             this.entities.push({ 
@@ -520,10 +526,25 @@ class DrivingScene {
                 speed: (400 + Math.random()*200) + (this.level===2?150:0) + (isSpeeder?300:0), 
                 width: 40, height: 60, speeder: isSpeeder
             });
-        } else {
+        } else { // Obstacle
             const obsType = this.level === 2 ? (Math.random()>0.6?'oil':(Math.random()>0.5?'barrel':'trash')) : (Math.random()>0.6?'oil':(Math.random()>0.9?'rock':'cone'));
             this.entities.push({ type: 'obstacle', x: (Math.floor(Math.random()*3)-1)*(Config.RoadWidth/3), y: startY, width: 40, height: 40, kind: obsType });
         }
+    }
+    
+    spawnEnvironment() {
+        const startY = -250;
+        const typeRoll = Math.random();
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const xPos = side * 280; // Distance from center
+        
+        // Ensure no overlap with recent buildings on same side
+        const conflict = this.entities.some(e => (e.type==='house'||e.type==='gas'||e.type==='supply') && e.side === side && e.y < 200);
+        if(conflict) return;
+
+        if (typeRoll < 0.1) this.entities.push({ type: 'supply', x: xPos, y: startY, side: side, used: false });
+        else if (typeRoll < 0.25) this.entities.push({ type: 'gas', x: xPos, y: startY, side: side, used: false });
+        else this.entities.push({ type: 'house', x: xPos, y: startY, side: side, needsService: true, serviced: false });
     }
 
     checkCollisions() {
@@ -557,37 +578,52 @@ class DrivingScene {
     }
 
     draw(ctx) {
+        // Auto Scale for Narrow Screens (Fixes Missing Buildings)
+        const scale = Math.min(1, ctx.canvas.width / Config.TotalViewWidth);
+        
+        ctx.save();
+        ctx.translate(ctx.canvas.width/2, 0); // Center canvas
+        ctx.scale(scale, scale); // Scale entire scene
+        ctx.translate(-ctx.canvas.width/2, 0); // Undo center offset for logic but keep zoom center
+        
+        // Correct centering with scale applied
+        // Effectively we want to draw as if canvas is 700px wide, centered
+        const virtualCX = ctx.canvas.width / 2;
+
+        // Background
         ctx.fillStyle = this.level === 2 ? Config.Colors.GrassNight : Config.Colors.GrassDay;
-        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        // Fill wider than canvas to cover scaling gaps
+        ctx.fillRect(-virtualCX*2, 0, virtualCX*4, ctx.canvas.height / scale); 
         
         // Level 2 Moon
         if(this.level === 2) {
-            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(ctx.canvas.width - 80, 80, 40, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(virtualCX + 300, 80, 40, 0, Math.PI*2); ctx.fill();
         }
-
-        const cx = ctx.canvas.width / 2;
         
+        // Road
         ctx.fillStyle = this.level === 2 ? Config.Colors.RoadNight : Config.Colors.RoadDay;
-        ctx.fillRect(cx - Config.RoadWidth/2, 0, Config.RoadWidth, ctx.canvas.height);
+        ctx.fillRect(virtualCX - Config.RoadWidth/2, 0, Config.RoadWidth, ctx.canvas.height / scale);
         
+        // Lines
         ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
         ctx.setLineDash([40, 40]); ctx.lineDashOffset = -this.distance;
-        ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, ctx.canvas.height); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(virtualCX, 0); ctx.lineTo(virtualCX, ctx.canvas.height / scale); ctx.stroke();
         ctx.setLineDash([]);
 
         this.entities.sort((a,b) => a.y - b.y).forEach(e => {
             ctx.save();
-            if(e instanceof Projectile) ctx.translate(cx + e.x, ctx.canvas.height - 100 - (e.y - this.player.y)); // Projectile math is tricky in relative mode, handled in class
-            else ctx.translate(cx + e.x, e.y);
+            if(e instanceof Projectile) ctx.translate(virtualCX + e.x, Game.canvas.height - 100 - (e.y - this.player.y)); 
+            else ctx.translate(virtualCX + e.x, e.y);
             
-            // Fix Projectile Drawing in Driving Mode
             if(e instanceof Projectile) {
-                 // Re-calculate draw pos based on original logic
-                 // The Projectile class updates its 'y' as absolute screen Y in update() 
-                 // BUT we moved world down.
-                 // Let's rely on Projectile class's own draw method
                  ctx.restore();
-                 e.draw(ctx, 0); // No cam offset needed for projectile class in driving mode
+                 // Re-apply scale for projectile
+                 ctx.save();
+                 ctx.translate(ctx.canvas.width/2, 0);
+                 ctx.scale(scale, scale);
+                 ctx.translate(-ctx.canvas.width/2, 0);
+                 e.draw(ctx, 0); 
+                 ctx.restore();
                  return;
             }
 
@@ -597,8 +633,8 @@ class DrivingScene {
 
         // Player
         ctx.save();
-        const drawY = ctx.canvas.height - 100 - this.player.y;
-        ctx.translate(cx + this.player.x, drawY);
+        const drawY = Game.canvas.height - 100 - this.player.y;
+        ctx.translate(virtualCX + this.player.x, drawY);
         ctx.fillStyle = '#ecf0f1'; ctx.fillRect(-20, -35, 40, 70);
         ctx.fillStyle = '#3498db'; ctx.fillRect(-20, -25, 40, 40); 
         ctx.fillStyle = 'white'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.fillText('TECH',0,5);
@@ -609,6 +645,8 @@ class DrivingScene {
             ctx.shadowBlur = 0;
         }
         ctx.restore();
+        
+        ctx.restore(); // End scale
     }
 
     drawEntity(ctx, e) {
