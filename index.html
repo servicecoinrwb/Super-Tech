@@ -1263,7 +1263,18 @@
              else obstacles = obstacles.filter(o => o!==entity);
         }
         createParticles(player.x, 0, '#e74c3c');
+        
+        // PENALTY: Lose money on crash
+        score = Math.max(0, score - 250);
+        
+        // Visual feedback (Flash Score Red)
+        const scoreEl = document.getElementById('score-display');
+        scoreEl.style.color = '#e74c3c';
+        setTimeout(() => scoreEl.style.color = '', 300);
+
         gameSpeed = Math.max(200, gameSpeed * 0.5); 
+        
+        updateHUD();
     }
 
     function createParticles(x, yRel, color) {
@@ -1323,6 +1334,8 @@
              p.mode = 'platformer'; p.vx = techPlayer.facingRight ? 800 : -800;
              projectiles.push(p);
         }
+        
+        updateHUD();
     }
 
     function checkService() { } // Handled in performAction now
@@ -1350,6 +1363,14 @@
         const secs = Math.floor(shiftTime % 60);
         const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         document.getElementById('final-time').innerText = `SHIFT DURATION: ${timeStr}`;
+        
+        // Update Local High Score
+        let high = parseInt(localStorage.getItem('hvac_high_score') || '0');
+        if (score > high) {
+            high = score;
+            localStorage.setItem('hvac_high_score', high);
+        }
+        document.getElementById('local-high-score').innerText = high;
         
         document.getElementById('game-over-reason').innerText = reason;
     }
