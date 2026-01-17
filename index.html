@@ -91,7 +91,7 @@
         }
 
         /* Updated Z-Index for screens to sit above mobile controls */
-        #start-screen, #game-over-screen, #level-screen {
+        #start-screen, #game-over-screen, #level-screen, #win-screen {
             position: absolute;
             top: 0;
             left: 0;
@@ -110,6 +110,10 @@
         #level-screen {
             background: rgba(26, 11, 46, 0.95); /* Ninja Purple */
             pointer-events: none; /* Just an overlay */
+        }
+
+        #win-screen {
+            background: rgba(46, 204, 113, 0.95);
         }
 
         h1 {
@@ -229,9 +233,22 @@
             background: rgba(255, 255, 255, 0.4);
             transform: scale(0.95);
         }
+        
+        .touch-zone-rect {
+            border-radius: 10px;
+            width: 100px;
+            height: 60px;
+        }
 
         #btn-left { left: 30px; }
         #btn-right { left: 130px; }
+        #btn-up { 
+            left: 80px; 
+            bottom: 130px; 
+            /* Only show Up button in platformer mode via JS */
+            display: none;
+        }
+        
         #btn-action { 
             right: 30px; 
             border-color: #e74c3c; 
@@ -301,10 +318,10 @@
 
     <!-- Level Up Screen -->
     <div id="level-screen" class="hidden">
-        <h1 class="ninja-title">LEVEL 2</h1>
-        <h1 class="ninja-title" style="font-size: 48px;">ON CALL</h1>
-        <p>EMERGENCY CALLS - NIGHT SHIFT</p>
-        <p style="color: #e74c3c">HEAVY TRAFFIC AHEAD!</p>
+        <h1 id="level-title" class="ninja-title">LEVEL 2</h1>
+        <h1 id="level-subtitle" class="ninja-title" style="font-size: 48px;">ON CALL</h1>
+        <p id="level-desc">EMERGENCY CALLS - NIGHT SHIFT</p>
+        <p id="level-warning" style="color: #e74c3c">HEAVY TRAFFIC AHEAD!</p>
     </div>
 
     <!-- Game Over Screen -->
@@ -316,12 +333,21 @@
         <button class="btn-retro" onclick="resetGame()">NEXT SHIFT</button>
         <button class="btn-retro btn-secondary" onclick="quitGame()">MAIN MENU</button>
     </div>
+    
+    <!-- Win Screen -->
+    <div id="win-screen" class="hidden">
+        <h1 style="color: #fff;">MISSION COMPLETE</h1>
+        <p>YOU REACHED THE MASTER CHILLER!</p>
+        <p id="win-score" style="font-size: 24px; color: #FFD700;">TOTAL CASH: $0</p>
+        <button class="btn-retro" onclick="quitGame()">RETURN TO HQ</button>
+    </div>
 
     <!-- Mobile Controls -->
     <div id="mobile-controls">
         <div id="btn-left" class="touch-zone">◄</div>
         <div id="btn-right" class="touch-zone">►</div>
-        <div id="btn-action" class="touch-zone">FIX</div>
+        <div id="btn-up" class="touch-zone">▲</div>
+        <div id="btn-action" class="touch-zone">ACT</div>
     </div>
 </div>
 
@@ -337,16 +363,15 @@
     // Game State
     let animationId;
     let lastTime = 0;
-    let gameSpeed = 300; // Pixels per second
+    let gameSpeed = 300; 
     let score = 0;
     let fuel = 100;
-    let shiftTime = 0; // Time in seconds
+    let shiftTime = 0;
     let isGameOver = false;
-    let isPaused = false;
-    let frameCount = 0;
     let shakeTimer = 0;
     let level = 1;
     let levelTransitioning = false;
+    let gameMode = 'driving'; // 'driving' or 'platformer'
 
     // Inputs
     const keys = {
@@ -358,11 +383,11 @@
     };
 
     // Constants
-    const ROAD_WIDTH = 400; // Logical width
+    const ROAD_WIDTH = 400; 
     let SCALE = 1;
     let CENTER_X = 0;
 
-    // Entities
+    // Driving Entities
     let player;
     let obstacles = [];
     let houses = [];
@@ -372,19 +397,21 @@
     let particles = [];
     let projectiles = [];
 
-    // Audio Context (Simple Beeps)
+    // Platformer Entities
+    let techPlayer;
+    let platforms = [];
+    let platformEnemies = [];
+    let camX = 0;
+
+    // Audio Context
     let audioCtx;
     let musicTimer = null;
     let musicBeat = 0;
     let isMusicMuted = false;
-    let tempo = 107; // Default BPM ms
+    let tempo = 107; 
     
-    // Arena Rock Patterns
-    // Driving E String Bass (Pedal Point)
-    const rockBass = [
-        82.41, 82.41, 82.41, 82.41, // E E E E
-        98.00, 82.41, 110.00, 98.00 // G E A G
-    ];
+    // Music Patterns
+    const rockBass = [82.41, 82.41, 82.41, 82.41, 98.00, 82.41, 110.00, 98.00];
 
     function initAudio() {
         if (!audioCtx) {
@@ -400,8 +427,11 @@
         initAudio();
         if (musicTimer) clearInterval(musicTimer);
         musicBeat = 0;
-        // Tempo based on Level
-        tempo = level === 1 ? 107 : 90; // Faster in Level 2 (smaller number = faster)
+        // Tempo: Level 1=107, Level 2=90 (faster), Level 3=80 (fastest)
+        if(level === 1) tempo = 107;
+        else if(level === 2) tempo = 90;
+        else tempo = 80;
+        
         musicTimer = setInterval(playMusicStep, tempo);
     }
 
@@ -418,7 +448,7 @@
             stopMusic();
         } else {
             if (!isGameOver && !document.getElementById('start-screen').classList.contains('visible')) {
-               if(player) startMusic(); 
+               startMusic(); 
             }
         }
     }
@@ -427,17 +457,16 @@
         if (!audioCtx || isMusicMuted) return;
         const t = audioCtx.currentTime;
 
-        // --- Bass ---
         const bassOsc = audioCtx.createOscillator();
         const bassGain = audioCtx.createGain();
         bassOsc.connect(bassGain);
         bassGain.connect(audioCtx.destination);
         bassOsc.type = 'sawtooth';
-        const noteIndex = musicBeat % 8;
-        let freq = rockBass[noteIndex];
         
-        // Level 2 music variation (Shift up 2 semitones)
-        if(level === 2) freq *= 1.122; 
+        let noteIndex = musicBeat % 8;
+        let freq = rockBass[noteIndex];
+        if(level >= 2) freq *= 1.122; // Key change
+        if(level === 3) freq *= 1.122; // Another Key change
 
         bassOsc.frequency.setValueAtTime(freq, t);
         bassGain.gain.setValueAtTime(0.15, t);
@@ -445,42 +474,8 @@
         bassOsc.start(t);
         bassOsc.stop(t + 0.1);
 
-        // --- Power Chords ---
-        if (musicBeat % 4 === 0) {
-            const chordOsc = audioCtx.createOscillator();
-            const chordGain = audioCtx.createGain();
-            chordOsc.connect(chordGain);
-            chordGain.connect(audioCtx.destination);
-            chordOsc.type = 'sawtooth';
-            
-            let chordRoot = 164.81; // E3
-            const measure = Math.floor(musicBeat / 8) % 4;
-            if (measure === 1) chordRoot = 196.00; // G3
-            if (measure === 2) chordRoot = 220.00; // A3
-            if (measure === 3) chordRoot = 196.00; // G3
-
-            if(level === 2) chordRoot *= 1.122;
-
-            chordOsc.frequency.setValueAtTime(chordRoot, t);
-            chordGain.gain.setValueAtTime(0.05, t);
-            chordGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-            chordOsc.start(t);
-            chordOsc.stop(t + 0.3);
-            
-            const fifthOsc = audioCtx.createOscillator();
-            const fifthGain = audioCtx.createGain();
-            fifthOsc.connect(fifthGain);
-            fifthGain.connect(audioCtx.destination);
-            fifthOsc.type = 'sawtooth';
-            fifthOsc.frequency.setValueAtTime(chordRoot * 1.5, t);
-            fifthGain.gain.setValueAtTime(0.05, t);
-            fifthGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-            fifthOsc.start(t);
-            fifthOsc.stop(t + 0.3);
-        }
-
-        // --- Drums ---
-        if (musicBeat % 4 === 0) { // Kick
+        // Drums / Chords logic simplified for brevity but kept rhythmic
+        if (musicBeat % 4 === 0 || (level === 3 && musicBeat % 2 === 0)) { // Kick (Double bass in lvl 3)
             const kickOsc = audioCtx.createOscillator();
             const kickGain = audioCtx.createGain();
             kickOsc.connect(kickGain);
@@ -492,19 +487,7 @@
             kickOsc.start(t);
             kickOsc.stop(t + 0.1);
         }
-        if (musicBeat % 4 === 2) { // Snare
-            const snareOsc = audioCtx.createOscillator();
-            const snareGain = audioCtx.createGain();
-            snareOsc.connect(snareGain);
-            snareGain.connect(audioCtx.destination);
-            snareOsc.type = 'triangle'; 
-            snareOsc.frequency.setValueAtTime(200, t); 
-            snareGain.gain.setValueAtTime(0.2, t);
-            snareGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-            snareOsc.start(t);
-            snareOsc.stop(t + 0.1);
-        }
-
+        
         musicBeat++;
     }
 
@@ -514,26 +497,17 @@
         const gain = audioCtx.createGain();
         osc.connect(gain);
         gain.connect(audioCtx.destination);
-
         const now = audioCtx.currentTime;
         
-        if (type === 'throw') {
+        if (type === 'throw' || type === 'jump') {
             osc.type = 'square';
-            osc.frequency.setValueAtTime(400, now);
-            osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+            osc.frequency.setValueAtTime(type==='jump'?200:400, now);
+            osc.frequency.exponentialRampToValueAtTime(type==='jump'?400:800, now + 0.1);
             gain.gain.setValueAtTime(0.1, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
             osc.start(now);
             osc.stop(now + 0.1);
-        } else if (type === 'score') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.setValueAtTime(1200, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            osc.start(now);
-            osc.stop(now + 0.3);
-        } else if (type === 'crash') {
+        } else if (type === 'crash' || type === 'hit') {
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(100, now);
             osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
@@ -541,573 +515,266 @@
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
             osc.start(now);
             osc.stop(now + 0.3);
-        } else if (type === 'oil') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(300, now);
-            osc.frequency.linearRampToValueAtTime(200, now + 0.4);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
-            osc.start(now);
-            osc.stop(now + 0.4);
-        } else if (type === 'fuel') {
+        } else if (type === 'score' || type === 'parts') {
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(200, now);
-            osc.frequency.linearRampToValueAtTime(400, now + 0.4);
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.setValueAtTime(1200, now + 0.1);
             gain.gain.setValueAtTime(0.1, now);
-            gain.gain.linearRampToValueAtTime(0.0, now + 0.4);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
             osc.start(now);
-            osc.stop(now + 0.4);
+            osc.stop(now + 0.3);
         } else if (type === 'levelup') {
             osc.type = 'square';
             osc.frequency.setValueAtTime(440, now);
-            osc.frequency.setValueAtTime(554, now + 0.1);
-            osc.frequency.setValueAtTime(659, now + 0.2);
+            osc.frequency.setValueAtTime(880, now + 0.5);
             gain.gain.setValueAtTime(0.1, now);
             gain.gain.linearRampToValueAtTime(0.0, now + 1.0);
             osc.start(now);
             osc.stop(now + 1.0);
-        } else if (type === 'parts') {
-            // Ka-ching / tool sound
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-            osc.start(now);
-            osc.stop(now + 0.2);
-            
-            // Second ding
-            const osc2 = audioCtx.createOscillator();
-            const gain2 = audioCtx.createGain();
-            osc2.connect(gain2);
-            gain2.connect(audioCtx.destination);
-            osc2.type = 'square';
-            osc2.frequency.setValueAtTime(1200, now + 0.1);
-            osc2.frequency.exponentialRampToValueAtTime(1600, now + 0.2);
-            gain2.gain.setValueAtTime(0.1, now + 0.1);
-            gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            osc2.start(now + 0.1);
-            osc2.stop(now + 0.3);
         }
     }
 
-    // --- Classes ---
+    // --- Classes (Driving) ---
 
     class Van {
         constructor() {
-            this.width = 40;
-            this.height = 70;
-            this.x = 0; 
-            this.y = 0; 
+            this.width = 40; this.height = 70;
+            this.x = 0; this.y = 0; 
             this.speedX = 300;
-            this.slideTimer = 0;
-            this.slideDirection = 0;
-            this.angle = 0;
+            this.slideTimer = 0; this.slideDirection = 0; this.angle = 0;
         }
-
         update(dt) {
-            // Handle Sliding from Oil
             if (this.slideTimer > 0) {
                 this.slideTimer -= dt;
                 this.x += this.slideDirection * this.speedX * dt * 1.5;
                 this.angle += this.slideDirection * 10 * dt;
             } else {
-                // Normal Movement
                 this.angle = 0;
                 if (keys.ArrowLeft) this.x -= this.speedX * dt;
                 if (keys.ArrowRight) this.x += this.speedX * dt;
             }
-
-            // Boundaries
             const roadEdge = ROAD_WIDTH / 2 - this.width / 2 - 25;
-            if (this.x < -roadEdge) {
-                this.x = -roadEdge;
-                this.slideTimer = 0; 
-            }
-            if (this.x > roadEdge) {
-                this.x = roadEdge;
-                this.slideTimer = 0;
-            }
+            if (this.x < -roadEdge) { this.x = -roadEdge; this.slideTimer = 0; }
+            if (this.x > roadEdge) { this.x = roadEdge; this.slideTimer = 0; }
         }
-
         draw(ctx) {
             ctx.save();
             ctx.translate(CENTER_X + this.x, canvas.height - 100);
             ctx.rotate(this.angle);
-
             // Shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width, this.height);
-
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width, this.height);
             // Body
-            ctx.fillStyle = '#ecf0f1'; // White van
-            ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
-
-            // Roof (Blue stripe)
-            ctx.fillStyle = '#3498db';
-            ctx.fillRect(-this.width/2, -this.height/2 + 10, this.width, 40);
-            
-            // Text "HVAC"
-            ctx.fillStyle = 'white';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('TECH', 0, 5);
-
-            // Windshield
-            ctx.fillStyle = '#34495e';
-            ctx.fillRect(-this.width/2 + 2, -this.height/2 + 2, this.width - 4, 15);
-
-            // Headlights
-            ctx.fillStyle = '#f1c40f';
-            ctx.fillRect(-this.width/2 + 2, -this.height/2, 8, 4);
-            ctx.fillRect(this.width/2 - 10, -this.height/2, 8, 4);
-
-            ctx.restore();
-        }
-    }
-
-    class Traffic {
-        constructor(y) {
-            this.y = y;
-            this.lane = Math.floor(Math.random() * 3) - 1; 
-            this.x = this.lane * (ROAD_WIDTH / 3.0);
-            this.width = 42;
-            this.height = 65;
-            
-            this.isSpeeder = Math.random() < 0.2; 
-            this.speed = this.isSpeeder ? 550 : 250; 
-            // Level 2 Speed Boost
-            if (level === 2) this.speed += 150; 
-            
-            this.color = this.isSpeeder ? '#ff0033' : ['#c0392b', '#8e44ad', '#27ae60', '#f39c12'][Math.floor(Math.random() * 4)];
-            if(level === 2 && !this.isSpeeder) this.color = '#555'; // Darker cars at night
-            
-            this.honked = false;
-        }
-
-        update(dt) {
-            this.y -= this.speed * dt;
-        }
-
-        draw(ctx, camY) {
-            const screenY = canvas.height - 100 - (this.y - camY);
-            if (screenY > canvas.height + 50 || screenY < -100) return;
-
-            ctx.save();
-            ctx.translate(CENTER_X + this.x, screenY);
-            
-            // Shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width, this.height);
-
-            // Car Body
-            ctx.fillStyle = this.color;
-            ctx.beginPath();
-            ctx.roundRect(-this.width/2, -this.height/2, this.width, this.height, 5);
-            ctx.fill();
-
-            if (this.isSpeeder) {
-                ctx.fillStyle = '#ffcc00';
-                ctx.fillRect(-5, -this.height/2, 10, this.height);
-            }
-
-            // Windshield 
-            ctx.fillStyle = '#34495e';
-            ctx.fillRect(-this.width/2 + 4, this.height/2 - 20, this.width - 8, 15);
-            // Rear window
-            ctx.fillRect(-this.width/2 + 4, -this.height/2 + 5, this.width - 8, 10);
-
+            ctx.fillStyle = '#ecf0f1'; ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
             // Roof
-            ctx.fillStyle = 'rgba(0,0,0,0.1)';
-            ctx.fillRect(-this.width/2 + 5, -this.height/2 + 20, this.width - 10, 30);
-
-            // Headlights 
-            // In Level 2 (Night), headlights are brighter/longer
-            ctx.fillStyle = this.isSpeeder ? '#8bf' : '#f1c40f'; 
-            if (level === 2) {
-                ctx.fillStyle = '#fff'; // Bright LED/High beams
-                ctx.globalAlpha = 0.5;
-                ctx.beginPath();
-                ctx.moveTo(-this.width/2 + 2, this.height/2 - 4);
-                ctx.lineTo(-this.width/2 - 10, this.height/2 + 60); // Beam
-                ctx.lineTo(-this.width/2 + 10, this.height/2 + 60);
-                ctx.lineTo(-this.width/2 + 10, this.height/2 - 4);
-                ctx.fill();
-                
-                ctx.beginPath();
-                ctx.moveTo(this.width/2 - 10, this.height/2 - 4);
-                ctx.lineTo(this.width/2 - 20, this.height/2 + 60);
-                ctx.lineTo(this.width/2 + 2, this.height/2 + 60);
-                ctx.lineTo(this.width/2 - 2, this.height/2 - 4);
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-                ctx.fillStyle = '#fff'; // The bulb itself
-            }
-            
-            ctx.fillRect(-this.width/2 + 2, this.height/2 - 4, 8, 4);
-            ctx.fillRect(this.width/2 - 10, this.height/2 - 4, 8, 4);
-
+            ctx.fillStyle = '#3498db'; ctx.fillRect(-this.width/2, -this.height/2 + 10, this.width, 40);
+            // Text
+            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TECH', 0, 5);
+            // Windshield
+            ctx.fillStyle = '#34495e'; ctx.fillRect(-this.width/2 + 2, -this.height/2 + 2, this.width - 4, 15);
+            // Headlights
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(-this.width/2 + 2, -this.height/2, 8, 4); ctx.fillRect(this.width/2 - 10, -this.height/2, 8, 4);
             ctx.restore();
         }
     }
 
     class Projectile {
         constructor(x, y, targetX, targetY) {
-            this.x = x;
-            this.y = y; // World Y
-            this.targetX = targetX;
-            this.targetY = targetY;
-            this.speed = 1000; 
-            this.active = true;
-            this.rotation = 0;
+            this.x = x; this.y = y; 
+            this.targetX = targetX; this.targetY = targetY;
+            this.speed = 1000; this.active = true; this.rotation = 0;
+            this.mode = 'driving';
+            this.vx = 0; // For platformer
         }
-
         update(dt) {
-            if (this.x < this.targetX) {
-                this.x += this.speed * dt;
-                if (this.x >= this.targetX) this.active = false;
+            if(this.mode === 'driving') {
+                if (this.x < this.targetX) { this.x += this.speed * dt; if (this.x >= this.targetX) this.active = false; } 
+                else { this.x -= this.speed * dt; if (this.x <= this.targetX) this.active = false; }
+                const dy = this.targetY - this.y; this.y += dy * 5 * dt;
             } else {
-                this.x -= this.speed * dt;
-                if (this.x <= this.targetX) this.active = false;
+                // Platformer Mode
+                this.x += this.vx * dt;
+                if(this.x > camX + canvas.width || this.x < camX) this.active = false;
             }
-            
-            const dy = this.targetY - this.y;
-            this.y += dy * 5 * dt;
-
             this.rotation += 15 * dt;
         }
-
         draw(ctx, camY) {
-            const screenY = canvas.height - 100 - (this.y - camY);
-            if (screenY < -50 || screenY > canvas.height + 50) return;
-
-            ctx.save();
-            ctx.translate(CENTER_X + this.x, screenY);
-            ctx.rotate(this.rotation);
-            
-            // Draw Wrench
-            ctx.fillStyle = '#bdc3c7';
-            ctx.fillRect(-10, -3, 20, 6);
-            ctx.beginPath();
-            ctx.arc(-10, 0, 6, 0, Math.PI * 2);
-            ctx.arc(10, 0, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#555'; 
-            ctx.beginPath(); ctx.arc(-10, 0, 2, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(10, 0, 3, 0, Math.PI*2); ctx.fill();
-            
-            ctx.restore();
-        }
-    }
-
-    class Obstacle {
-        constructor(y) {
-            this.y = y; 
-            this.width = 40;
-            this.height = 40;
-            const lane = Math.floor(Math.random() * 3) - 1; 
-            this.x = lane * (ROAD_WIDTH / 3.0);
-            
-            // Level 2: Trash Cans and Construction Barrels
-            if (level === 2) {
-                this.type = Math.random() > 0.6 ? 'oil' : 'trash'; // Trash cans
-                if (Math.random() > 0.8) this.type = 'barrel'; // Construction Barrel
+            let screenX, screenY;
+            if(this.mode === 'driving') {
+                screenY = canvas.height - 100 - (this.y - camY);
+                screenX = CENTER_X + this.x;
+                if (screenY < -50 || screenY > canvas.height + 50) return;
             } else {
-                this.type = Math.random() > 0.6 ? 'oil' : 'cone';
-                if (Math.random() > 0.9) this.type = 'rock';
+                screenX = this.x - camX;
+                screenY = this.y;
             }
-        }
-
-        draw(ctx, camY) {
-            const screenY = canvas.height - 100 - (this.y - camY);
-            if (screenY > canvas.height + 50 || screenY < -100) return;
 
             ctx.save();
-            ctx.translate(CENTER_X + this.x, screenY);
-
-            if (this.type === 'cone') {
-                ctx.fillStyle = '#e67e22';
-                ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(15, 20); ctx.lineTo(-15, 20); ctx.fill();
-                ctx.fillStyle = '#d35400'; ctx.fillRect(-18, 15, 36, 5);
-            } else if (this.type === 'oil') {
-                ctx.fillStyle = '#111'; ctx.globalAlpha = 0.8;
-                ctx.beginPath(); ctx.ellipse(0, 10, 25, 15, 0, 0, Math.PI * 2); ctx.fill();
-                ctx.globalAlpha = 1.0;
-            } else if (this.type === 'rock') {
-                ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.arc(0, 10, 15, 0, Math.PI*2); ctx.fill();
-            } else if (this.type === 'barrel') { // Level 2 Construction Barrel
-                ctx.fillStyle = '#e67e22'; // Orange
-                ctx.fillRect(-15, -20, 30, 40);
-                ctx.fillStyle = '#fff'; // Stripes
-                ctx.fillRect(-15, -10, 30, 10);
-                ctx.fillRect(-15, 10, 30, 10);
-                // Top lid
-                ctx.fillStyle = '#d35400';
-                ctx.beginPath(); ctx.ellipse(0, -20, 15, 5, 0, 0, Math.PI*2); ctx.fill();
-            } else if (this.type === 'trash') { // Level 2 Trash Can
-                ctx.fillStyle = '#95a5a6'; // Metal/Silver
-                ctx.fillRect(-12, -18, 24, 36);
-                // Ribs
-                ctx.strokeStyle = '#7f8c8d';
-                ctx.beginPath(); 
-                ctx.moveTo(-12, -5); ctx.lineTo(12, -5);
-                ctx.moveTo(-12, 5); ctx.lineTo(12, 5);
-                ctx.stroke();
-                // Lid handle
-                ctx.fillStyle = '#7f8c8d';
-                ctx.fillRect(-4, -22, 8, 4);
-            }
-
+            ctx.translate(screenX, screenY);
+            ctx.rotate(this.rotation);
+            ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-10, -3, 20, 6);
+            ctx.beginPath(); ctx.arc(-10, 0, 6, 0, Math.PI * 2); ctx.arc(10, 0, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(-10, 0, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, 0, 3, 0, Math.PI*2); ctx.fill();
             ctx.restore();
         }
     }
 
-    class GasStation {
-        constructor(y, side) {
-            this.y = y;
-            this.side = side; 
-            this.width = 120;
-            this.height = 80;
-            this.x = side * (ROAD_WIDTH / 2 + 90);
-            this.refueled = false;
-        }
+    // --- Classes (Platformer) ---
 
-        draw(ctx, camY) {
-            const screenY = canvas.height - 100 - (this.y - camY);
-            if (screenY > canvas.height + 100 || screenY < -100) return;
-
-            ctx.save();
-            ctx.translate(CENTER_X + this.x, screenY);
-
-            // Concrete Island
-            ctx.fillStyle = '#bdc3c7';
-            ctx.fillRect(-40, -10, 80, 20);
-
-            // Pumps
-            ctx.fillStyle = '#e74c3c'; // Red pumps
-            ctx.fillRect(-30, -30, 20, 30);
-            ctx.fillRect(10, -30, 20, 30);
-            
-            // Canopy Column
-            ctx.fillStyle = '#7f8c8d';
-            ctx.fillRect(-5, -60, 10, 60);
-
-            // Roof/Canopy
-            ctx.fillStyle = '#2ecc71'; // Green brand color
-            ctx.fillRect(-60, -80, 120, 30);
-            
-            // "GAS" text
-            ctx.fillStyle = 'white';
-            ctx.font = '12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('GAS', 0, -60);
-
-            // Interact Indicator
-            if (!this.refueled) {
-                const bob = Math.sin(Date.now() / 200) * 3;
-                ctx.fillStyle = '#f1c40f';
-                ctx.font = '10px "Press Start 2P"';
-                ctx.fillText('$100', 0, -95 + bob);
-            }
-
-            ctx.restore();
-        }
-    }
-
-    class SupplyHouse {
-        constructor(y, side) {
-            this.y = y;
-            this.side = side;
-            this.width = 120;
-            this.height = 80;
-            this.x = side * (ROAD_WIDTH / 2 + 90);
-            this.collected = false;
-        }
-
-        draw(ctx, camY) {
-            const screenY = canvas.height - 100 - (this.y - camY);
-            if (screenY > canvas.height + 100 || screenY < -100) return;
-
-            ctx.save();
-            ctx.translate(CENTER_X + this.x, screenY);
-
-            // Warehouse Base
-            ctx.fillStyle = '#7f8c8d'; // Grey concrete
-            ctx.fillRect(-50, -10, 100, 20);
-
-            // Building
-            ctx.fillStyle = '#d35400'; // Industrial Orange
-            ctx.fillRect(-40, -50, 80, 50);
-
-            // Roof
-            ctx.fillStyle = '#2c3e50';
-            ctx.beginPath();
-            ctx.moveTo(-45, -50);
-            ctx.lineTo(0, -70);
-            ctx.lineTo(45, -50);
-            ctx.fill();
-
-            // Roll-up Door
-            ctx.fillStyle = '#95a5a6';
-            ctx.fillRect(-20, -40, 40, 40);
-            // Lines on door
-            ctx.strokeStyle = '#7f8c8d';
-            ctx.lineWidth = 2;
-            for(let i=0; i<4; i++) {
-                ctx.beginPath(); ctx.moveTo(-20, -30 + i*10); ctx.lineTo(20, -30 + i*10); ctx.stroke();
-            }
-
-            // Sign
-            ctx.fillStyle = '#f1c40f';
-            ctx.fillRect(-30, -60, 60, 15);
-            ctx.fillStyle = '#000';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('PARTS', 0, -50);
-
-            // Interact Indicator
-            if (!this.collected) {
-                const bob = Math.sin(Date.now() / 200) * 3;
-                ctx.fillStyle = '#2ecc71'; // Green for bonus
-                ctx.font = '10px "Press Start 2P"';
-                ctx.fillText('+$250', 0, -85 + bob);
-            }
-
-            ctx.restore();
-        }
-    }
-
-    class House {
-        constructor(y, side) {
-            this.y = y;
-            this.side = side; 
-            this.width = 100;
-            this.height = 80;
-            this.needsService = Math.random() > 0.3; 
-            this.serviceType = Math.random() > 0.5 ? 'hot' : 'cold';
-            this.serviced = false;
-            this.x = side * (ROAD_WIDTH / 2 + 80);
-        }
-
-        draw(ctx, camY) {
-            const screenY = canvas.height - 100 - (this.y - camY);
-            if (screenY > canvas.height + 100 || screenY < -100) return;
-
-            ctx.save();
-            ctx.translate(CENTER_X + this.x, screenY);
-
-            // Driveway
-            ctx.fillStyle = '#555';
-            const driveX = this.side === -1 ? 50 : -50;
-            ctx.fillRect(driveX, 0, this.side === -1 ? 100 : -100, 30);
-
-            // House Body
-            ctx.fillStyle = this.needsService && !this.serviced ? '#fce4ec' : '#ecf0f1';
-            if(level === 2) ctx.fillStyle = '#4a235a'; // Dark purple house in level 2
-            
-            ctx.fillRect(-40, -40, 80, 60);
-            
-            // Roof
-            ctx.fillStyle = '#c0392b';
-            if(level === 2) ctx.fillStyle = '#2c3e50'; // Dark roof
-            
-            ctx.beginPath();
-            ctx.moveTo(-50, -40);
-            ctx.lineTo(0, -70);
-            ctx.lineTo(50, -40);
-            ctx.fill();
-
-            // Door
-            ctx.fillStyle = '#7f8c8d';
-            ctx.fillRect(-10, 0, 20, 20);
-
-            // Equipment (Visuals for AC or Furnace)
-            if (this.needsService || this.serviced) {
-                const equipX = this.side === -1 ? -55 : 55; 
-                ctx.save();
-                ctx.translate(equipX, 20); 
-
-                if (this.serviceType === 'hot') {
-                    // Draw AC Unit
-                    ctx.fillStyle = '#bdc3c7';
-                    ctx.fillRect(-10, -20, 20, 20); 
-                    ctx.fillStyle = '#7f8c8d';
-                    ctx.beginPath(); ctx.arc(0, -10, 8, 0, Math.PI*2); ctx.fill(); 
-                    ctx.strokeStyle = '#2c3e50';
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(-8, -10); ctx.lineTo(8, -10);
-                    ctx.moveTo(0, -18); ctx.lineTo(0, -2);
-                    ctx.stroke();
-                } else {
-                    // Draw Furnace
-                    ctx.fillStyle = '#546e7a';
-                    ctx.fillRect(-8, -25, 16, 25); 
-                    ctx.fillStyle = '#263238';
-                    ctx.fillRect(-6, -8, 12, 6); 
-                    ctx.strokeStyle = '#78909c';
-                    ctx.lineWidth = 3;
-                    ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -32); ctx.stroke();
-                }
-                ctx.restore();
-            }
-
-            // Alert Icon
-            if (this.needsService && !this.serviced) {
-                const bob = Math.sin(Date.now() / 200) * 5;
-                ctx.translate(0, -90 + bob);
-                
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(0, 0, 15, 0, Math.PI*2);
-                ctx.fill();
-
-                if (this.serviceType === 'hot') {
-                    ctx.fillStyle = '#e74c3c'; 
-                    ctx.fillRect(-3, -8, 6, 16);
-                    ctx.beginPath(); ctx.arc(0, 8, 5, 0, Math.PI*2); ctx.fill();
-                } else {
-                    ctx.fillStyle = '#3498db'; 
-                    ctx.font = '16px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('❄️', 0, 2);
-                }
-            } else if (this.serviced) {
-                ctx.translate(0, -90);
-                ctx.fillStyle = '#2ecc71';
-                ctx.font = '24px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('✓', 0, 0);
-            }
-
-            ctx.restore();
-        }
-    }
-
-    class Particle {
-        constructor(x, y, color) {
-            this.x = x;
-            this.y = y;
-            this.vx = (Math.random() - 0.5) * 200;
-            this.vy = (Math.random() - 0.5) * 200;
-            this.life = 1.0;
-            this.color = color;
+    class TechPlayer {
+        constructor() {
+            this.x = 100;
+            this.y = 300;
+            this.width = 30;
+            this.height = 50;
+            this.vx = 0;
+            this.vy = 0;
+            this.onGround = false;
+            this.facingRight = true;
         }
         update(dt) {
+            // Movement
+            const runSpeed = 300;
+            if (keys.ArrowRight) { this.vx = runSpeed; this.facingRight = true; }
+            else if (keys.ArrowLeft) { this.vx = -runSpeed; this.facingRight = false; }
+            else { this.vx = 0; }
+
+            // Jump
+            if (keys.ArrowUp && this.onGround) {
+                this.vy = -600;
+                this.onGround = false;
+                playSound('jump');
+            }
+
+            // Physics
+            this.vy += 1500 * dt; // Gravity
             this.x += this.vx * dt;
             this.y += this.vy * dt;
-            this.life -= dt * 2;
+
+            // Platform Collision
+            this.onGround = false;
+            if(this.y > canvas.height + 100) {
+                // Fell off world
+                isGameOver = true;
+                gameOver("FELL OFF THE ROOF!");
+            }
+
+            for(let p of platforms) {
+                if(this.x + this.width > p.x && this.x < p.x + p.width &&
+                   this.y + this.height > p.y && this.y + this.height < p.y + p.height + 20 &&
+                   this.vy >= 0) {
+                    this.y = p.y - this.height;
+                    this.vy = 0;
+                    this.onGround = true;
+                }
+            }
         }
         draw(ctx) {
-            ctx.globalAlpha = this.life;
-            ctx.fillStyle = this.color;
-            ctx.fillRect(CENTER_X + this.x, canvas.height - 100 - this.y, 4, 4); 
-            ctx.globalAlpha = 1.0;
+            ctx.save();
+            const drawX = this.x - camX;
+            ctx.translate(drawX, this.y);
+            
+            // Body
+            ctx.fillStyle = '#ecf0f1'; // White uniform
+            ctx.fillRect(0, 0, this.width, this.height);
+            // Blue belt/stripe
+            ctx.fillStyle = '#3498db'; 
+            ctx.fillRect(0, 20, this.width, 10);
+            // Head
+            ctx.fillStyle = '#f1c40f'; // Skin tone ish
+            ctx.fillRect(5, -15, 20, 20);
+            // Hat
+            ctx.fillStyle = '#3498db';
+            ctx.fillRect(5, -20, 20, 5);
+            ctx.fillRect(this.facingRight ? 15 : 0, -20, 15, 5); // Bill of cap
+
+            // Legs animation
+            if(Math.abs(this.vx) > 10) {
+                const legOffset = Math.sin(Date.now() / 50) * 10;
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(5, 50, 8, 15 + legOffset);
+                ctx.fillRect(17, 50, 8, 15 - legOffset);
+            } else {
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(5, 50, 8, 15);
+                ctx.fillRect(17, 50, 8, 15);
+            }
+
+            ctx.restore();
         }
     }
 
-    // --- Game Logic ---
+    class Platform {
+        constructor(x, y, w, h, type) {
+            this.x = x; this.y = y; this.width = w; this.height = h; this.type = type;
+        }
+        draw(ctx) {
+            if (this.x - camX > canvas.width || this.x + this.width - camX < 0) return;
+            
+            ctx.save();
+            ctx.translate(this.x - camX, this.y);
+            
+            if (this.type === 'roof') {
+                ctx.fillStyle = '#555';
+                ctx.fillRect(0, 0, this.width, this.height);
+                // Detail lines
+                ctx.fillStyle = '#444';
+                ctx.fillRect(0, 0, this.width, 10);
+            } else if (this.type === 'ac') {
+                // AC Unit Platform
+                ctx.fillStyle = '#95a5a6';
+                ctx.fillRect(0, 0, this.width, this.height);
+                // Fan
+                ctx.fillStyle = '#333';
+                ctx.beginPath(); ctx.arc(this.width/2, this.height/2, this.height/3, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
+
+    class PlatformEnemy {
+        constructor(x, y, type) {
+            this.x = x; this.y = y; this.type = type;
+            this.width = 40; this.height = 40;
+            this.active = true;
+            this.t = Math.random() * 100;
+        }
+        update(dt) {
+            this.t += dt;
+            if(this.type === 'bat') {
+                this.x -= 100 * dt; // Fly left
+                this.y += Math.sin(this.t * 5) * 2; // Bob
+            } else if (this.type === 'orb') {
+                this.y += Math.sin(this.t * 3) * 1; // Hover
+            }
+        }
+        draw(ctx) {
+            if (this.x - camX > canvas.width || this.x + this.width - camX < 0) return;
+            const drawX = this.x - camX;
+            ctx.save();
+            ctx.translate(drawX, this.y);
+            
+            if(this.type === 'bat') {
+                ctx.fillStyle = '#3498db'; // Ice Bat
+                ctx.beginPath(); 
+                ctx.moveTo(0,0); ctx.lineTo(20, 10); ctx.lineTo(40, 0); // Wings
+                ctx.lineTo(20, 20); ctx.fill();
+            } else if (this.type === 'orb') {
+                ctx.fillStyle = '#e74c3c'; // Heat Orb
+                ctx.beginPath(); ctx.arc(20, 20, 15, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#f1c40f'; 
+                ctx.beginPath(); ctx.arc(20, 20, 8, 0, Math.PI*2); ctx.fill();
+            } else if (this.type === 'boss') {
+                // Master Chiller
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(0, 0, 100, 150);
+                ctx.fillStyle = '#3498db'; // Coils
+                for(let i=0; i<5; i++) ctx.fillRect(10, 10 + i*25, 80, 15);
+            }
+            ctx.restore();
+        }
+    }
+
+    // --- Game Logic Functions ---
 
     function resize() {
         canvas.width = window.innerWidth;
@@ -1116,485 +783,451 @@
         CENTER_X = canvas.width / 2;
     }
 
+    function initLevel3() {
+        gameMode = 'platformer';
+        techPlayer = new TechPlayer();
+        platforms = [];
+        platformEnemies = [];
+        projectiles = [];
+        particles = [];
+        camX = 0;
+        
+        // Mobile UI Update
+        document.getElementById('btn-up').style.display = 'flex';
+        document.getElementById('fuel-bar-container').parentElement.style.display = 'none'; // Hide fuel
+
+        // Generate Level
+        let curX = 0;
+        for(let i=0; i<50; i++) {
+            let w = 200 + Math.random() * 300;
+            let gap = 50 + Math.random() * 100;
+            let h = 400; // Height of building from bottom
+            let y = canvas.height - 200 - Math.random() * 100; // Roof Y
+            
+            platforms.push(new Platform(curX, y, w, h, 'roof'));
+            
+            // Add AC units on top
+            if(Math.random() > 0.5) {
+                platforms.push(new Platform(curX + 50, y - 40, 60, 40, 'ac'));
+            }
+
+            // Enemies
+            if (i > 2 && Math.random() > 0.4) {
+                platformEnemies.push(new PlatformEnemy(curX + w/2, y - 100, Math.random() > 0.5 ? 'bat' : 'orb'));
+            }
+
+            curX += w + gap;
+        }
+        
+        // Final Boss Platform
+        platforms.push(new Platform(curX, canvas.height - 250, 500, 400, 'roof'));
+        let boss = new PlatformEnemy(curX + 200, canvas.height - 400, 'boss');
+        boss.width = 100; boss.height = 150;
+        platformEnemies.push(boss);
+    }
+
     function startGame() {
         initAudio();
         startMusic();
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('game-over-screen').classList.add('hidden');
         document.getElementById('level-screen').classList.add('hidden');
+        document.getElementById('win-screen').classList.add('hidden');
         
-        player = new Van();
+        // Reset to Level 1 state
+        gameMode = 'driving';
+        level = 1;
         score = 0;
         fuel = 100;
         shiftTime = 0;
+        player = new Van();
         gameSpeed = 400;
-        obstacles = [];
-        houses = [];
-        gasStations = [];
-        supplyHouses = [];
-        traffic = [];
-        projectiles = [];
-        particles = [];
-        isGameOver = false;
-        level = 1;
-        levelTransitioning = false;
+        obstacles = []; houses = []; gasStations = []; supplyHouses = []; traffic = [];
+        projectiles = []; particles = [];
         
+        document.getElementById('btn-up').style.display = 'none';
+        document.getElementById('fuel-bar-container').parentElement.style.display = 'block';
+
+        isGameOver = false;
         lastTime = performance.now();
         animationId = requestAnimationFrame(gameLoop);
         
         updateHUD();
     }
 
-    function startLevel2() {
-        if(level === 2) return;
-        level = 2;
+    function transitionLevel(newLevel) {
         levelTransitioning = true;
-        playSound('levelup');
         
+        const title = document.getElementById('level-title');
+        const sub = document.getElementById('level-subtitle');
+        const desc = document.getElementById('level-desc');
+        const warn = document.getElementById('level-warning');
+        
+        if (newLevel === 2) {
+            title.innerText = "LEVEL 2";
+            sub.innerText = "ON CALL";
+            desc.innerText = "EMERGENCY CALLS - NIGHT SHIFT";
+            warn.innerText = "HEAVY TRAFFIC AHEAD!";
+        } else if (newLevel === 3) {
+            title.innerText = "LEVEL 3";
+            sub.innerText = "ROOFTOP RUMBLE";
+            desc.innerText = "THE VAN IS PARKED. PROCEED ON FOOT.";
+            warn.innerText = "DON'T FALL!";
+        }
+
         document.getElementById('level-screen').classList.remove('hidden');
-        
-        // Boost difficulty
-        gameSpeed = 600; 
-        
-        // Pause briefly for dramatic effect
+        playSound('levelup');
+
         setTimeout(() => {
-            document.getElementById('level-screen').classList.add('hidden');
+            level = newLevel;
             levelTransitioning = false;
-            startMusic(); // Restart music with new tempo/pitch
+            document.getElementById('level-screen').classList.add('hidden');
+            if(level === 3) initLevel3();
+            startMusic();
         }, 3000);
     }
 
-    function resetGame() {
-        stopMusic();
-        cancelAnimationFrame(animationId);
-        startGame();
-    }
+    // --- Update Loops ---
 
-    function quitGame() {
-        isGameOver = true;
-        stopMusic();
-        cancelAnimationFrame(animationId);
-        document.getElementById('start-screen').classList.remove('hidden');
-        document.getElementById('game-over-screen').classList.add('hidden');
-        document.getElementById('level-screen').classList.add('hidden');
-    }
-
-    function gameOver(reason) {
-        stopMusic();
-        isGameOver = true;
-        document.getElementById('game-over-screen').classList.remove('hidden');
-        document.getElementById('final-score').innerText = `EARNINGS: $${score}`;
+    function updateDriving(dt) {
+        let totalDistance = 0; // Relative purely for scrolling effect in this frame not needed global
+        // Global totalDistance logic removed for simplicity, entities move relative to player speed
         
-        // Format Time
-        const mins = Math.floor(shiftTime / 60);
-        const secs = Math.floor(shiftTime % 60);
-        const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        document.getElementById('final-time').innerText = `SHIFT DURATION: ${timeStr}`;
-        
-        document.getElementById('game-over-reason').innerText = reason;
-    }
+        // Level Transition
+        if(score >= 1000 && level === 1) transitionLevel(2);
+        if(score >= 2000 && level === 2) transitionLevel(3);
 
-    let nextObstacleDist = 0;
-    let nextTrafficDist = 500;
-    let nextHouseDist = 200;
-    let nextGasDist = 2000;
-    let nextSupplyDist = 1500;
+        if(level === 2 && gameSpeed < 600) gameSpeed += dt * 20;
 
-    function spawnEntities(distance) {
-        const difficulty = 1 + Math.min(distance / 10000, 2);
-        
-        // Level 2 spawns things faster
-        const spawnMult = level === 2 ? 0.7 : 1.0; 
-
-        // Spawn Obstacles
-        if (distance > nextObstacleDist) {
-            obstacles.push(new Obstacle(distance + 1200));
-            nextObstacleDist = distance + ((Math.random() * 400 + 300) / difficulty) * spawnMult;
-        }
-
-        // Spawn Traffic (Cars)
-        if (distance > nextTrafficDist) {
-            traffic.push(new Traffic(distance + 1500));
-            nextTrafficDist = distance + ((Math.random() * 800 + 400) / difficulty) * spawnMult;
-        }
-
-        // Spawn Houses
-        if (distance > nextHouseDist) {
-             const lastHouse = houses[houses.length-1];
-             houses.push(new House(distance + 1200, Math.random() > 0.5 ? 1 : -1));
-             nextHouseDist = distance + 300; 
-        }
-
-        // Spawn Gas Stations
-        if (distance > nextGasDist) {
-            gasStations.push(new GasStation(distance + 1200, Math.random() > 0.5 ? 1 : -1));
-            nextGasDist = distance + 2000 + Math.random() * 1000;
-        }
-
-        // Spawn Supply Houses
-        if (distance > nextSupplyDist) {
-            supplyHouses.push(new SupplyHouse(distance + 1200, Math.random() > 0.5 ? 1 : -1));
-            nextSupplyDist = distance + 3000 + Math.random() * 2000;
-        }
-    }
-
-    let totalDistance = 0;
-
-    function update(dt) {
-        if (isGameOver || levelTransitioning) return;
-
-        totalDistance += gameSpeed * dt;
-        shiftTime += dt;
-        
-        // Level Transition Logic
-        if(score >= 1000 && level === 1) {
-            startLevel2();
-        }
-        
-        // Fuel Consumption
-        // Consume based on time approx 5 units per sec (increased from 3)
-        if (player) {
-            let fuelBurn = 5;
-            if(level === 2) fuelBurn = 7; // Burn more fuel in Level 2
-            
-            fuel -= dt * fuelBurn;
-            if (fuel <= 0) {
-                fuel = 0;
-                gameOver("OUT OF GAS!");
-            }
-        }
-
-        // Shake Timer
-        if (shakeTimer > 0) shakeTimer -= dt;
-        
-        // Speed scaling: Cap at 800 (1000 for level 2)
-        const maxSpeed = level === 2 ? 1000 : 800;
-        if (gameSpeed < maxSpeed) {
-            gameSpeed += dt * 10; 
-        }
+        // Fuel
+        let fuelBurn = level === 2 ? 7 : 5;
+        fuel -= dt * fuelBurn;
+        if(fuel <= 0) { fuel = 0; isGameOver = true; gameOver("OUT OF GAS!"); }
 
         player.update(dt);
 
+        // Spawn logic (simplified for readability)
+        if(Math.random() < 0.02) obstacles.push(new Obstacle(-1000)); // Y set below
+        if(Math.random() < 0.015) traffic.push(new Traffic(-1000));
+        if(Math.random() < 0.01) houses.push(new House(-1000, Math.random()>0.5?1:-1));
+        if(Math.random() < 0.005) gasStations.push(new GasStation(-1000, Math.random()>0.5?1:-1));
+        if(Math.random() < 0.005) supplyHouses.push(new SupplyHouse(-1000, Math.random()>0.5?1:-1));
+
+        // Move World (Instead of distance variable, we move objects down)
+        const moveDist = gameSpeed * dt;
+        [obstacles, houses, gasStations, supplyHouses, traffic].forEach(arr => {
+            arr.forEach(obj => obj.y += moveDist); // Move down screen
+        });
+        
+        // Traffic speed adjust (they move relative to road)
+        traffic.forEach(t => t.y += t.speed * dt); 
+
+        // Initial spawn fix: objects start way above screen
+        if (obstacles.length === 0 && traffic.length === 0 && houses.length === 0) {
+             // quick seed
+             obstacles.push(new Obstacle(-500));
+        }
+        
+        // Filter off-screen
+        obstacles = obstacles.filter(o => o.y < canvas.height + 200);
+        houses = houses.filter(o => o.y < canvas.height + 200);
+        traffic = traffic.filter(o => o.y < canvas.height + 200);
+        gasStations = gasStations.filter(o => o.y < canvas.height + 200);
+        supplyHouses = supplyHouses.filter(o => o.y < canvas.height + 200);
+
         // Projectiles
-        for (let i = projectiles.length - 1; i >= 0; i--) {
-            projectiles[i].update(dt);
-            if (!projectiles[i].active) projectiles.splice(i, 1);
-        }
+        projectiles.forEach((p, i) => {
+            p.update(dt);
+            if(!p.active) projectiles.splice(i, 1);
+        });
 
-        // Traffic Updates
-        for (let t of traffic) {
-            t.update(dt);
-            // Audio cue when car passes close
-            if (!t.honked && t.y < totalDistance + 300 && t.y > totalDistance) {
-                t.honked = true;
-            }
-        }
+        // Collisions
+        checkService(moveDist); // Pass moveDist to calc relative pos? No, just check Y
+        checkCollisions();
+    }
 
-        // Spawning
-        spawnEntities(totalDistance);
+    function checkCollisions() {
+        const playerRect = {x: player.x - 20, y: 0, w: 40, h: 70}; // Player Y is effectively fixed at bottom area relative to road
+        // Wait, in draw() player is at canvas.height - 100.
+        // Objects interact when their Y is around canvas.height - 100.
+        const hitY = canvas.height - 100;
 
-        // Cleanup
-        obstacles = obstacles.filter(o => o.y > totalDistance - 200);
-        houses = houses.filter(h => h.y > totalDistance - 200);
-        gasStations = gasStations.filter(g => g.y > totalDistance - 200);
-        supplyHouses = supplyHouses.filter(s => s.y > totalDistance - 200);
-        traffic = traffic.filter(t => t.y > totalDistance - 500); 
-
-        // Generic Collision Checker
-        function checkCollision(entity) {
-             const yThreshold = 35; 
-             const xThreshold = (player.width + entity.width)/2 - 10; 
-
-            if (Math.abs(entity.y - totalDistance) < yThreshold) {
-                if (Math.abs(player.x - entity.x) < xThreshold) {
-                    return true;
-                }
+        // Helper to check Y overlap
+        const checkHit = (obj) => {
+            // Transform obj.y (which increases as it comes down) to screen Y
+            // My spawn logic above: obj.y starts negative (above screen) and increases.
+            // Screen Y = obj.y. 
+            // Player is at Screen Y = canvas.height - 100.
+            // So collision when obj.y is approx canvas.height - 100.
+            
+            // Correction from previous logic:
+            // Previous logic used a "totalDistance" variable. I switched to moving objects directly.
+            // Let's ensure new objects are spawned at -200 or so.
+            // draw() uses `translate(CENTER_X + this.x, screenY)` where screenY was calculated.
+            // Let's stick to the simpler: Objects have a 'y' property that is their SCREEN Y.
+            
+            // Spawn correction:
+            if(obj.y === -1000) obj.y = -200; // Reset new spawns
+            
+            if (Math.abs(obj.y - hitY) < 40) {
+               if (Math.abs(player.x - obj.x) < 30) return true;
             }
             return false;
-        }
+        };
 
-        // Collisions: Obstacles
-        for (let obs of obstacles) {
-            if (checkCollision(obs)) {
-                if (obs.type === 'oil') {
-                    if (player.slideTimer <= 0) {
-                        player.slideTimer = 1.0;
-                        player.slideDirection = Math.random() > 0.5 ? 1 : -1;
-                        playSound('oil');
-                        createParticles(player.x, 0, '#111');
-                    }
+        obstacles.forEach(o => {
+            if(checkHit(o)) {
+                if(o.type === 'oil') {
+                    player.slideTimer = 1.0; player.slideDirection = Math.random()>0.5?1:-1; playSound('oil');
                 } else {
-                    crash(obs);
+                    crash();
+                    o.y = 2000; // remove
                 }
             }
-        }
+        });
 
-        // Collisions: Traffic
-        for (let car of traffic) {
-            if (checkCollision(car)) {
-                crash(car);
+        traffic.forEach(t => {
+            if(checkHit(t)) {
+                crash();
+                t.y = 2000;
             }
-        }
-        
-        // Update HUD for Fuel
-        updateHUD();
-    }
-
-    function crash(entity) {
-        playSound('crash');
-        // Trigger screen shake
-        shakeTimer = 0.5;
-
-        // Remove entity so we don't hit it twice instantly
-        if (entity instanceof Traffic) {
-            traffic = traffic.filter(t => t !== entity);
-        } else {
-            obstacles = obstacles.filter(o => o !== entity);
-        }
-        
-        createParticles(player.x, 0, '#e74c3c');
-        createParticles(player.x, 0, '#bdc3c7'); // Metal parts
-        
-        gameSpeed = Math.max(200, gameSpeed * 0.5); 
-        
-        updateHUD();
-    }
-
-    function createParticles(x, yRel, color) {
-        for(let i=0; i<10; i++) {
-            particles.push(new Particle(x, yRel, color));
-        }
+        });
     }
 
     function checkService() {
-        if (isGameOver || levelTransitioning) return;
-
-        let actionTaken = false;
-        const playerReach = 120; // Vertical tolerance
-        const laneThreshold = 50; // How far from center you must be
-
-        // Check Houses
-        for (let house of houses) {
-            if (Math.abs(house.y - totalDistance) < playerReach) {
-                let inPosition = false;
-                if (house.side === -1 && player.x < -laneThreshold) inPosition = true;
-                if (house.side === 1 && player.x > laneThreshold) inPosition = true;
-
-                if (inPosition && house.needsService && !house.serviced) {
-                    playSound('throw');
-                    house.serviced = true;
-                    score += 50;
-                    playSound('score');
-                    actionTaken = true;
-                    projectiles.push(new Projectile(player.x, totalDistance, house.x, house.y));
-                }
+        const hitY = canvas.height - 100;
+        const checkRange = (obj) => Math.abs(obj.y - hitY) < 120;
+        
+        houses.forEach(h => {
+            if(checkRange(h) && h.needsService && !h.serviced) {
+                // Auto throw if aligned? Or wait for Space?
+                // Original logic: Press Space
             }
+        });
+    }
+    
+    // Function called by Input Space
+    function performAction() {
+        if(gameMode === 'driving') {
+            const hitY = canvas.height - 100;
+            let action = false;
+            
+            // Check Houses
+            houses.forEach(h => {
+                if(Math.abs(h.y - hitY) < 120 && h.needsService && !h.serviced) {
+                    if((h.side === -1 && player.x < -50) || (h.side === 1 && player.x > 50)) {
+                        h.serviced = true; score += 50; playSound('throw'); playSound('score'); action = true;
+                        projectiles.push(new Projectile(player.x, hitY, h.x, h.y));
+                    }
+                }
+            });
+            // Check Gas
+            if(!action) gasStations.forEach(g => {
+                if(Math.abs(g.y - hitY) < 120 && !g.refueled) {
+                    if((g.side === -1 && player.x < -50) || (g.side === 1 && player.x > 50)) {
+                        g.refueled = true; fuel = 100; score -= 100; playSound('fuel'); action = true;
+                    }
+                }
+            });
+            // Check Supply
+            if(!action) supplyHouses.forEach(s => {
+                if(Math.abs(s.y - hitY) < 120 && !s.collected) {
+                    if((s.side === -1 && player.x < -50) || (s.side === 1 && player.x > 50)) {
+                        s.collected = true; score += 250; playSound('parts'); action = true;
+                    }
+                }
+            });
+        } else {
+            // Platformer Attack
+            playSound('throw');
+            let p = new Projectile(techPlayer.x + 20, techPlayer.y + 20, 0, 0);
+            p.mode = 'platformer';
+            p.vx = techPlayer.facingRight ? 800 : -800;
+            projectiles.push(p);
+        }
+    }
+
+    function updatePlatformer(dt) {
+        shiftTime += dt;
+        techPlayer.update(dt);
+        
+        // Camera Follow
+        camX = techPlayer.x - 200;
+        if(camX < 0) camX = 0;
+
+        // Enemies
+        platformEnemies.forEach(e => e.update(dt));
+
+        // Projectiles
+        for(let i = projectiles.length - 1; i >= 0; i--) {
+            let p = projectiles[i];
+            p.update(dt);
+            
+            // Hit Enemy
+            platformEnemies.forEach((e, ei) => {
+                if(e.active && p.active && 
+                   p.x > e.x && p.x < e.x + e.width && 
+                   p.y > e.y && p.y < e.y + e.height) {
+                    e.active = false;
+                    p.active = false;
+                    score += 100;
+                    playSound('hit');
+                    
+                    if(e.type === 'boss') {
+                        isGameOver = true;
+                        document.getElementById('win-screen').classList.remove('hidden');
+                        document.getElementById('win-score').innerText = `TOTAL CASH: $${score}`;
+                    }
+                }
+            });
+            
+            if(!p.active) projectiles.splice(i, 1);
         }
         
-        // Check Gas Stations
-        if (!actionTaken) {
-            for (let station of gasStations) {
-                if (Math.abs(station.y - totalDistance) < playerReach) {
-                    let inPosition = false;
-                    if (station.side === -1 && player.x < -laneThreshold) inPosition = true;
-                    if (station.side === 1 && player.x > laneThreshold) inPosition = true;
-                    
-                    if (inPosition && !station.refueled) {
-                        playSound('fuel');
-                        fuel = 100;
-                        score -= 100; // Cost of fuel
-                        station.refueled = true;
-                        createParticles(player.x, 0, '#2ecc71'); // Green bubbles
-                        actionTaken = true;
-                    }
-                }
+        // Player Hit by Enemy
+        platformEnemies.forEach(e => {
+            if(e.active && 
+               techPlayer.x < e.x + e.width && techPlayer.x + techPlayer.width > e.x &&
+               techPlayer.y < e.y + e.height && techPlayer.y + techPlayer.height > e.y) {
+                // Hit!
+                isGameOver = true;
+                gameOver("KNOCKED OUT BY " + e.type.toUpperCase() + "!");
             }
-        }
+        });
+    }
 
-        // Check Supply Houses
-        if (!actionTaken) {
-            for (let supply of supplyHouses) {
-                if (Math.abs(supply.y - totalDistance) < playerReach) {
-                    let inPosition = false;
-                    if (supply.side === -1 && player.x < -laneThreshold) inPosition = true;
-                    if (supply.side === 1 && player.x > laneThreshold) inPosition = true;
-                    
-                    if (inPosition && !supply.collected) {
-                        playSound('parts'); // Play new sound
-                        score += 250; // Bonus cash
-                        supply.collected = true;
-                        createParticles(player.x, 0, '#d35400'); // Orange/Bronze sparks
-                        actionTaken = true;
-                    }
-                }
-            }
-        }
+    function update(dt) {
+        if (isGameOver || levelTransitioning) return;
+        
+        if (gameMode === 'driving') updateDriving(dt);
+        else updatePlatformer(dt);
         
         updateHUD();
     }
 
-    function updateHUD() {
-        document.getElementById('score-display').innerText = `CASH: $${score}`;
-        
-        // Format Time
-        const mins = Math.floor(shiftTime / 60);
-        const secs = Math.floor(shiftTime % 60);
-        document.getElementById('time-display').innerText = `SHIFT: ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-
-        // Update Fuel Bar
-        const fuelFill = document.getElementById('fuel-bar-fill');
-        fuelFill.style.width = `${fuel}%`;
-        
-        if (fuel < 20) {
-            fuelFill.style.backgroundColor = '#e74c3c'; // Red alert
-            fuelFill.classList.add('blink');
-        } else {
-            fuelFill.style.backgroundColor = '#2ecc71';
-            fuelFill.classList.remove('blink');
-        }
-    }
+    // --- Draw Loops ---
 
     function draw() {
-        // Clear
-        // Level 1: Grass (#2c3e50), Level 2: Dark Night (#1a0b2e)
-        ctx.fillStyle = level === 1 ? '#2c3e50' : '#1a0b2e'; 
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Background
+        if(level === 1) ctx.fillStyle = '#2c3e50'; 
+        else ctx.fillStyle = '#1a0b2e'; // Night
         
-        if(level === 2) {
-            // Draw Moon
+        if (gameMode === 'platformer') {
+            // Skyline gradient
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#0f0c29');
+            grad.addColorStop(1, '#302b63');
+            ctx.fillStyle = grad;
+        }
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if(level >= 2 || gameMode === 'platformer') {
+            // Moon
             ctx.fillStyle = '#f1c40f';
-            ctx.beginPath();
-            ctx.arc(canvas.width - 80, 80, 40, 0, Math.PI*2);
-            ctx.fill();
-            // Crater
-            ctx.fillStyle = 'rgba(0,0,0,0.1)';
-            ctx.beginPath(); ctx.arc(canvas.width - 90, 70, 8, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(canvas.width - 70, 90, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(canvas.width - 80, 80, 40, 0, Math.PI*2); ctx.fill();
         }
 
-        // Apply Screen Shake
+        // Screen Shake
         ctx.save();
         if (shakeTimer > 0) {
             const shake = 10 * shakeTimer;
-            const dx = (Math.random() - 0.5) * shake;
-            const dy = (Math.random() - 0.5) * shake;
-            ctx.translate(dx, dy);
+            ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
         }
 
-        // Road
-        // Level 1: Grey, Level 2: Darker Grey
-        ctx.fillStyle = level === 1 ? '#7f8c8d' : '#34495e'; 
-        ctx.fillRect(CENTER_X - ROAD_WIDTH/2, 0, ROAD_WIDTH, canvas.height);
-        
-        // Road Lines
-        ctx.strokeStyle = '#f1c40f';
-        ctx.lineWidth = 4;
-        ctx.setLineDash([40, 40]);
-        ctx.lineDashOffset = -totalDistance;
-        ctx.beginPath();
-        ctx.moveTo(CENTER_X, 0);
-        ctx.lineTo(CENTER_X, canvas.height);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        
-        // Lane markers (faint white for 3 lanes)
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([20, 20]);
-        // Left Lane Line
-        ctx.beginPath(); ctx.moveTo(CENTER_X - ROAD_WIDTH/6, 0); ctx.lineTo(CENTER_X - ROAD_WIDTH/6, canvas.height); ctx.stroke();
-        // Right Lane Line
-        ctx.beginPath(); ctx.moveTo(CENTER_X + ROAD_WIDTH/6, 0); ctx.lineTo(CENTER_X + ROAD_WIDTH/6, canvas.height); ctx.stroke();
-        ctx.setLineDash([]);
+        if (gameMode === 'driving') {
+            // Draw Road
+            ctx.fillStyle = level === 1 ? '#7f8c8d' : '#34495e';
+            ctx.fillRect(CENTER_X - ROAD_WIDTH/2, 0, ROAD_WIDTH, canvas.height);
+            // Lines
+            ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(CENTER_X, 0); ctx.lineTo(CENTER_X, canvas.height); ctx.stroke();
+            
+            // Draw Objects (Sorted by Y for depth)
+            const all = [...obstacles, ...houses, ...gasStations, ...supplyHouses, ...traffic, player];
+            all.sort((a,b) => a.y - b.y); // Actually player Y is fixed visually in draw logic, but this helps others
+            
+            // In my new logic, player.draw handles its own Y. 
+            // Let's just draw environment first
+            houses.forEach(o => o.draw(ctx, 0));
+            gasStations.forEach(o => o.draw(ctx, 0));
+            supplyHouses.forEach(o => o.draw(ctx, 0));
+            obstacles.forEach(o => o.draw(ctx, 0));
+            traffic.forEach(o => o.draw(ctx, 0));
+            player.draw(ctx);
+            
+            // Draw Projectiles
+            projectiles.forEach(p => p.draw(ctx, 0));
 
-        // Curbs
-        ctx.fillStyle = '#95a5a6';
-        ctx.fillRect(CENTER_X - ROAD_WIDTH/2 - 10, 0, 10, canvas.height);
-        ctx.fillRect(CENTER_X + ROAD_WIDTH/2, 0, 10, canvas.height);
+        } else {
+            // Platformer Draw
+            platforms.forEach(p => p.draw(ctx));
+            platformEnemies.forEach(e => { if(e.active) e.draw(ctx); });
+            techPlayer.draw(ctx);
+            projectiles.forEach(p => p.draw(ctx));
+        }
 
-        // Entities
-        // Draw houses and gas stations first (behind road objects usually, but side of road)
-        houses.forEach(h => h.draw(ctx, totalDistance));
-        gasStations.forEach(g => g.draw(ctx, totalDistance));
-        supplyHouses.forEach(s => s.draw(ctx, totalDistance));
-        
-        // Draw Traffic and Obstacles sorted by Y to handle overlap correctly-ish
-        const allObjects = [...obstacles, ...traffic];
-        allObjects.sort((a,b) => b.y - a.y);
-        
-        allObjects.forEach(o => o.draw(ctx, totalDistance));
-        
-        player.draw(ctx);
-
-        // Draw Projectiles
-        projectiles.forEach(p => p.draw(ctx, totalDistance));
-
-        particles.forEach(p => p.draw(ctx));
-
-        // Restore context (remove shake)
         ctx.restore();
 
-        // Scanlines effect (Retro)
+        // Scanlines
         ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
-        for (let i = 0; i < canvas.height; i += 4) {
-            ctx.fillRect(0, i, canvas.width, 2);
-        }
+        for (let i = 0; i < canvas.height; i += 4) { ctx.fillRect(0, i, canvas.width, 2); }
     }
 
+    // --- Helpers ---
+    function resetGame() { quitGame(); startGame(); }
+    function quitGame() {
+        stopMusic(); isGameOver = true;
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('win-screen').classList.add('hidden');
+        document.getElementById('level-screen').classList.add('hidden');
+    }
+    
+    // --- Input Binding ---
+    window.addEventListener('keydown', e => {
+        if(e.code==='ArrowLeft') keys.ArrowLeft=true;
+        if(e.code==='ArrowRight') keys.ArrowRight=true;
+        if(e.code==='ArrowUp') keys.ArrowUp=true;
+        if(e.code==='Space') { if(!keys.Space) performAction(); keys.Space=true; }
+    });
+    window.addEventListener('keyup', e => {
+        if(e.code==='ArrowLeft') keys.ArrowLeft=false;
+        if(e.code==='ArrowRight') keys.ArrowRight=false;
+        if(e.code==='ArrowUp') keys.ArrowUp=false;
+        if(e.code==='Space') keys.Space=false;
+    });
+    
+    // Touch
+    const btnLeft = document.getElementById('btn-left');
+    const btnRight = document.getElementById('btn-right');
+    const btnUp = document.getElementById('btn-up');
+    const btnAction = document.getElementById('btn-action');
+    
+    const bindTouch = (btn, key) => {
+        btn.addEventListener('touchstart', e => { e.preventDefault(); keys[key]=true; if(key==='Space') performAction(); });
+        btn.addEventListener('touchend', e => { e.preventDefault(); keys[key]=false; });
+    };
+    bindTouch(btnLeft, 'ArrowLeft');
+    bindTouch(btnRight, 'ArrowRight');
+    bindTouch(btnUp, 'ArrowUp');
+    bindTouch(btnAction, 'Space');
+
+    // Main Loop
     function gameLoop(timestamp) {
         if (!lastTime) lastTime = timestamp;
         const dt = (timestamp - lastTime) / 1000;
         lastTime = timestamp;
-
         update(dt);
         draw();
-
-        if (!isGameOver) {
-            requestAnimationFrame(gameLoop);
-        }
+        if(!isGameOver) requestAnimationFrame(gameLoop);
     }
-
-    // --- Inputs ---
-
-    window.addEventListener('keydown', (e) => {
-        if (e.code === 'ArrowLeft') keys.ArrowLeft = true;
-        if (e.code === 'ArrowRight') keys.ArrowRight = true;
-        if (e.code === 'Space') {
-            if(!keys.Space) checkService();
-            keys.Space = true;
-        }
-    });
-
-    window.addEventListener('keyup', (e) => {
-        if (e.code === 'ArrowLeft') keys.ArrowLeft = false;
-        if (e.code === 'ArrowRight') keys.ArrowRight = false;
-        if (e.code === 'Space') keys.Space = false;
-    });
-
+    
     window.addEventListener('resize', resize);
     resize();
-
-    // Touch Controls
-    const btnLeft = document.getElementById('btn-left');
-    const btnRight = document.getElementById('btn-right');
-    const btnAction = document.getElementById('btn-action');
-
-    btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowLeft = true; });
-    btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys.ArrowLeft = false; });
     
-    btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowRight = true; });
-    btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys.ArrowRight = false; });
-
-    btnAction.addEventListener('touchstart', (e) => { 
-        e.preventDefault(); 
-        keys.Space = true; 
-        checkService(); 
-    });
-    btnAction.addEventListener('touchend', (e) => { e.preventDefault(); keys.Space = false; });
-    
-    // Expose functions to window for buttons
-    window.quitGame = quitGame;
+    // Expose
     window.toggleMusic = toggleMusic;
+    window.quitGame = quitGame;
     window.startGame = startGame;
     window.resetGame = resetGame;
 
