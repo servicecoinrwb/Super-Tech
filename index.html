@@ -150,20 +150,18 @@
         }
 
         .touch-zone {
-            pointer-events: auto; position: absolute;
+            pointer-events: auto; position: absolute; bottom: 40px;
             width: 70px; height: 70px; background: rgba(255, 255, 255, 0.15);
             border: 3px solid rgba(255, 255, 255, 0.6); border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
             font-size: 30px; color: white; user-select: none; backdrop-filter: blur(2px);
-            /* Reset specific positioning to use in specific IDs */
         }
         .touch-zone:active { background: rgba(255, 255, 255, 0.4); transform: scale(0.95); }
 
-        /* D-Pad Layout */
-        #btn-left { left: 20px; bottom: 80px; }
-        #btn-right { left: 160px; bottom: 80px; }
-        #btn-up { left: 90px; bottom: 150px; display: none; }
-        #btn-down { left: 90px; bottom: 10px; display: none; }
+        #btn-left { left: 20px; bottom: 60px; }
+        #btn-right { left: 140px; bottom: 60px; }
+        #btn-up { left: 80px; bottom: 120px; display: none; }
+        #btn-down { left: 80px; bottom: 10px; display: none; }
         
         #btn-action { 
             right: 30px; bottom: 60px; border-color: #e74c3c; color: #e74c3c; 
