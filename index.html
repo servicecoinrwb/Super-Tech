@@ -577,7 +577,7 @@ class DrivingScene {
 
         this.entities.sort((a,b) => a.y - b.y).forEach(e => {
             ctx.save();
-            if(e instanceof Projectile) ctx.translate(cx + e.x, canvas.height - 100 - (e.y - this.player.y)); // Projectile math is tricky in relative mode, handled in class
+            if(e instanceof Projectile) ctx.translate(cx + e.x, ctx.canvas.height - 100 - (e.y - this.player.y)); // Projectile math is tricky in relative mode, handled in class
             else ctx.translate(cx + e.x, e.y);
             
             // Fix Projectile Drawing in Driving Mode
